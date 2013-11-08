@@ -13,8 +13,8 @@ let $grammar := p:grammar((
   p:rule("RP",p:term(")")),
   p:rule("Dot",p:term(".")),
   p:rule("<ws>",p:choice("S","Comment")),
-  p:rule("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;")),fn:false()),
-  p:rule("Comment",(p:term("/*"),p:zero-or-more(p:term("*")),p:term("*/")),fn:false())
+  p:rule("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;")),"ws-explicit"),
+  p:rule("Comment",(p:term("/*"),p:zero-or-more(p:term("*")),p:term("*/")),"ws-explicit")
 ))
 (:let $grammar := p:grammar((
   p:rule("M",(p:term("zz"),p:zero-or-more(p:term("abc")))),
@@ -28,7 +28,7 @@ abc   abc
 abcabcabcabc abc abc abc abc abc abc abc abc abc abc abc abc abc":)
 
 let $t_grammar := xdmp:elapsed-time()
-let $parser := p:make-parser($grammar,"M")
+let $parser := p:make-parser($grammar)
 let $t_parser := xdmp:elapsed-time()
 let $tree := $parser($input)
 let $t_parse := xdmp:elapsed-time()

@@ -62,6 +62,21 @@ declare function delete(
   hamt:delete(key#1, eq#2, $map, entry($key, ()))
 };
 
+declare function push(
+  $map as item(),
+  $value as item()*
+) as item()
+{
+  hamt:put(key#1, eq#2, $map, entry(size($map), $value))
+};
+
+declare function pop(
+  $map as item()
+) as item()
+{
+  hamt:delete(key#1, eq#2, $map, entry(size($map) - 1, ()))
+};
+
 declare function get($map as item(), $key as xs:integer)
   as item()*
 {

@@ -23,17 +23,23 @@ import module namespace array = "http://snelson.org.uk/functions/array" at "lib/
 import module namespace hamt = "http://snelson.org.uk/functions/hamt" at "lib/hamt.xq";
 
 (:
- : Grammar = map(string,RuleSet)
+ : Grammar = map(string,Rule)
+ : Rule = (integer, RuleSet)
  : RuleSet = hamt(RuleRHS)
  : RuleRHS = Category* boolean
  : Category = NT integer string | T integer integer
  :)
 
-declare variable $start-state := "<start>";
 declare variable $ws-state := "<ws>";
 declare variable $ws-category := category-nt("<ws>");
 declare variable $epsilon-state := "<epsilon>";
 declare variable $epsilon-category := category-nt("<epsilon>");
+
+declare variable $epsilon-id := 0;
+declare variable $ws-id := 1;
+declare variable $start-id := 2;
+
+declare variable $ws-option := "ws-explicit";
 
 declare %private function category-nt($n)
 {
@@ -128,6 +134,10 @@ declare %private function ruleset-fold(
 
 (: -------------------------------------------------------------------------- :)
 
+(:
+ : Grammar construction functions
+ :)
+
 declare %private function codepoint($c)
 {
   switch($c)
@@ -148,19 +158,19 @@ declare %private function category-as-string($c)
 declare function grammar-as-string($grammar)
 {
   fn:string-join(map:fold(
-    function($z,$n,$set) {
+    function($z,$n,$rule) {
       $z,
-      $n || " ::= " ||
+      "(" || fn:head($rule) || ") " || $n || " ::= " ||
       fn:string-join(
-        ruleset-fold(
-          function($s,$rule) {
-            $s,
-            $rule(function($c,$ws) {
-              (if(fn:not($ws)) then "ws_explicit(" else "") ||
-              fn:string-join($c ! category-as-string(.)," ") ||
-              (if(fn:not($ws)) then ")" else "")
-            })
-          },(),$set)," | ")
+        ruleset-fold(function($s,$rule) {
+          $s,
+          $rule(function($c,$ws) {
+            (if(fn:not($ws)) then "ws-explicit(" else "") ||
+            fn:string-join($c ! category-as-string(.)," ") ||
+            (if(fn:not($ws)) then ")" else "")
+          })
+        },(),fn:tail($rule)),
+      " | ")
     },(),$grammar),"&#10;")
 };
 
@@ -356,34 +366,47 @@ declare %private function make-non-terms($categories)
 
 declare function rule($n,$categories)
 {
-  rule($n,$categories,fn:true())
+  rule($n,$categories,())
 };
 
-declare function rule($n,$categories,$ws)
+declare function rule($n,$categories,$options)
 {
-  fn:tail(make-rules($n,1,(),make-non-terms($categories),$ws))
+  let $ws := fn:not($options = $p:ws-option)
+  return fn:tail(make-rules($n,1,(),make-non-terms($categories),$ws))
 };
 
 declare function grammar($rules)
 {
-  fn:fold-left(
+  let $map := fn:fold-left(
     function($map,$rule) {
       $rule(function($category,$categories,$ws) {
-        let $set := map:get($map,$category)
-        let $set := if(fn:exists($set)) then $set else ruleset()
-        return map:put($map,$category,ruleset-put($set,rulerhs($categories,$ws)))
+        let $rule := map:get($map,$category)
+        let $id :=
+          if($category eq $p:ws-state) then $p:ws-id
+          else if(fn:exists($rule)) then fn:head($rule)
+          else (map:count($map) + $p:start-id)
+        let $set := if(fn:exists($rule)) then fn:tail($rule) else ruleset()
+        return map:put($map,$category,($id,ruleset-put($set,rulerhs($categories,$ws))))
       })
     },
     map:create(),
     $rules
   )
+  return map:put($map,$p:epsilon-state,($p:epsilon-id))
 };
 
 declare %private function grammar-get($grammar,$category)
 {
-  let $set := map:get($grammar,$category)
-  where fn:exists($set)
-  return ruleset-fold(function($s,$c){ $s,$c },(),$set)
+  let $rule := map:get($grammar,$category)
+  where fn:exists($rule)
+  return ruleset-fold(function($s,$c){ $s,$c },(),fn:tail($rule))
+};
+
+declare %private function grammar-get-id($grammar,$category)
+{
+  let $rule := map:get($grammar,$category)
+  where fn:exists($rule)
+  return fn:head($rule)
 };
 
 declare %private function category-nullable($grammar,$category)
@@ -483,12 +506,12 @@ declare function dotted-ruleset-hash($set as item()) as xs:integer
 (:
  : States = array(integer,State) array(state-hash(State),integer) hamt(PendingEdge)
  : PendingEdge = integer, Category
- : State = DottedRuleSet map(string,integer) array(integer,integer) hamt(Category) integer
+ : State = DottedRuleSet array(integer,integer) array(integer,integer) integer* integer
  :)
 
 declare %private function states-as-string($s)
 {
-  $s(function($states,$statemap,$pending) {
+  $s(function($states,$statemap,$pending,$names) {
     fn:string-join((
       for $id in (0 to (array:size($states)-1))
       let $state := array:get($states,$id)
@@ -499,22 +522,20 @@ declare %private function states-as-string($s)
             $s,
             $dr(function($n,$cb,$ca,$ws,$h) {
               "  " || $n || " ::= " ||
-              (if(fn:not($ws)) then "ws_explicit(" else "") ||
+              (if(fn:not($ws)) then "ws-explicit(" else "") ||
               fn:string-join($cb ! category-as-string(.)," ") ||
               "." ||
               fn:string-join($ca ! category-as-string(.)," ") ||
               (if(fn:not($ws)) then ")" else "")
             })
           },(),$drs),
-          map:fold(function($s,$nt,$sid) {
+          array:fold(function($s,$nt,$sid) {
             $s, "    edge: " || $nt || " -> " || $sid
           },(),$nte),
           array:fold(function($s,$t,$sid) {
             $s, "    edge: '" || codepoint($t) || "' -> " || $sid
           },(),$te),
-          map:fold(function($s,$c,$_) {
-            $s, "    complete: " || $c
-          },(),$cs)
+          $cs ! ("    complete: " || .)
         }),
       hamt:fold(function($s,$pe) {
         $s,$pe(function($s,$c) {
@@ -525,38 +546,41 @@ declare %private function states-as-string($s)
   })
 };
 
-declare %private function states()
+declare %private function states($grammar)
 {
   let $states := array:create()
   let $statemap := array:create()
   let $pending := hamt:create()
-  return function($f) { $f($states,$statemap,$pending) }
+  let $names := map:fold(function($names,$category,$rule) {
+    array:put($names,fn:head($rule),$category)
+  },array:create(),$grammar)
+  return function($f) { $f($states,$statemap,$pending,$names) }
 };
 
 declare %private function states-get($s,$id)
 {
-  $s(function($states,$statemap,$pending) {
+  $s(function($states,$statemap,$pending,$names) {
     array:get($states,$id)
   })
 };
 
 declare %private function states-add-state($s,$grammar,$state,$pe)
 {
-  $s(function($states,$statemap,$pending) {
+  $s(function($states,$statemap,$pending,$names) {
     $state(function($drs,$nte,$te,$cs,$h) {
       let $id := array:get($statemap,$h)
       return if(fn:exists($id)) then
         let $states_ := if(fn:empty($pe)) then $states else
-          statesarray-add-edge($states,$pe,$id)
+          statesarray-add-edge($states,$grammar,$pe,$id)
         let $pending_ := if(fn:empty($pe)) then $pending else
           hamt:delete(pending-edge-hash#1,pending-edge-eq#2,$pending,$pe)
-        return ($id,function($f) { $f($states_,$statemap,$pending_) })
+        return ($id,function($f) { $f($states_,$statemap,$pending_,$names) })
       else 
         let $id := array:size($states)
         let $states_ := array:put($states,$id,$state)
         let $statemap_ := array:put($statemap,$h,$id)
         let $states_ := if(fn:empty($pe)) then $states_ else
-          statesarray-add-edge($states_,$pe,$id)
+          statesarray-add-edge($states_,$grammar,$pe,$id)
         let $pending_ := dotted-ruleset-fold(function($p,$dr) {
             $dr(function($n,$cb,$ca,$ws,$h) {
               if(fn:empty($ca)) then $p else
@@ -571,21 +595,21 @@ declare %private function states-add-state($s,$grammar,$state,$pe)
             pending-edge($id,$p:ws-category))
         let $pending_ := if(fn:empty($pe)) then $pending_ else
           hamt:delete(pending-edge-hash#1,pending-edge-eq#2,$pending_,$pe)
-        return ($id,function($f) { $f($states_,$statemap_,$pending_) })
+        return ($id,function($f) { $f($states_,$statemap_,$pending_,$names) })
     })
   })
 };
 
-declare %private function statesarray-add-edge($states,$pe,$id)
+declare %private function statesarray-add-edge($states,$grammar,$pe,$id)
 {
   $pe(function($s,$c) {
-    array:put($states,$s,state-add-edge(array:get($states,$s),$c,$id))
+    array:put($states,$s,state-add-edge(array:get($states,$s),$grammar,$c,$id))
   })
 };
 
 declare %private function states-next-pending-edge($s)
 {
-  $s(function($states,$statemap,$pending) {
+  $s(function($states,$statemap,$pending,$names) {
     hamt:fold(function($r,$pe) { $pe },(),$pending)
   })
 };
@@ -609,15 +633,16 @@ declare %private function pending-edge-eq($a as item(), $b as item()) as xs:bool
   })
 };
 
-declare %private function state($drs)
+declare %private function state($grammar,$drs)
 {
-  let $nte := map:create()
+  let $nte := array:create()
   let $te := array:create()
-  let $cs := dotted-ruleset-fold(function($cs,$dr) {
-      $dr(function($n,$cb,$ca,$ws,$h) {
-        if(fn:exists($ca)) then $cs else map:put($cs,$n,())
-      })
-    },map:create(),$drs)
+  let $cs := fn:distinct-values(dotted-ruleset-fold(function($cs,$dr) {
+    $cs,
+    $dr(function($n,$cb,$ca,$ws,$h) {
+      if(fn:exists($ca)) then () else grammar-get-id($grammar,$n)
+    })
+  },(),$drs))
   let $h := dotted-ruleset-hash($drs)
   return function($f) { $f($drs,$nte,$te,$cs,$h) }
 };
@@ -633,12 +658,13 @@ declare %private function state-eq($a as item(), $b as item()) as xs:boolean
   })
 };
 
-declare %private function state-add-edge($state,$c,$id)
+declare %private function state-add-edge($state,$grammar,$c,$id)
 {
   $state(function($drs,$nte,$te,$cs,$h) {
     $c(
       (:nt:) function($h,$category) {
-        let $nte := map:put($nte,$category,$id)
+        let $cid := grammar-get-id($grammar,$category)
+        let $nte := array:put($nte,$cid,$id)
         return function($f) { $f($drs,$nte,$te,$cs,$h) }
       },
       (:t:) function($h,$s) {
@@ -651,17 +677,27 @@ declare %private function state-add-edge($state,$c,$id)
 
 (: -------------------------------------------------------------------------- :)
 
-declare %private function dfa($grammar,$start)
+(:
+ : Split Epsilon-DFA production
+ : http://webhome.cs.uvic.ca/~nigelh/Publications/PracticalEarleyParsing.pdf
+ :)
+
+declare %private function dfa($grammar)
 {
-  let $dr := dotted-rule($p:start-state,category-nt($start),fn:false())
-  let $set := dotted-ruleset-put(dotted-ruleset(),$dr)
-  let $states := dfa-build-state($grammar,states(),$set,())
+  let $drs := map:fold(function($r,$category,$rule) {
+    if(fn:head($rule) ne $p:start-id) then $r
+    else ruleset-fold(function($r,$rule){
+      $r, $rule(function($c,$ws) { dotted-rule($category,$c,$ws) })
+    },$r,fn:tail($rule))
+  },(),$grammar)
+  let $set := fn:fold-left(dotted-ruleset-put#2,dotted-ruleset(),$drs)
+  let $states := dfa-build-state($grammar,states($grammar),$set,())
   return dfa-process-pending($grammar,$states)
 };
 
 declare %private function dfa-process-pending($grammar,$s)
 {
-  $s(function($states,$statemap,$pending) {
+  $s(function($states,$statemap,$pending,$names) {
     let $pe := states-next-pending-edge($s)
     return if(fn:empty($pe)) then $s else
       $pe(function($sid,$c) {
@@ -679,13 +715,13 @@ declare %private function dfa-process-pending($grammar,$s)
 declare %private function dfa-build-state($grammar,$states,$set,$pe)
 {
   let $set := dotted-ruleset-fold(dfa-predict-nullable($grammar,?,?),$set,$set)
-  let $r := states-add-state($states,$grammar,state($set),$pe)
+  let $r := states-add-state($states,$grammar,state($grammar,$set),$pe)
   let $id := fn:head($r), $states := fn:tail($r)
   let $split-pe := pending-edge($id,$p:epsilon-category)
   let $split := dotted-ruleset-fold(dfa-predict($grammar,?,?),dotted-ruleset(),$set)
   let $split-empty := dotted-ruleset-fold(function($b,$dr) { fn:false() },fn:true(),$split)
   return if($split-empty) then $states else  
-    fn:tail(states-add-state($states,$grammar,state($split),$split-pe))
+    fn:tail(states-add-state($states,$grammar,state($grammar,$split),$split-pe))
 };
 
 declare %private function dfa-scan($grammar,$set,$token,$dr)
@@ -836,16 +872,14 @@ declare function chart-as-string($chart)
             $s,
             $dr(function($n,$cb,$ca,$ws,$h) {
               $index || ":   " || $n || " ::= " ||
-              (if(fn:not($ws)) then "ws_explicit(" else "") ||
+              (if(fn:not($ws)) then "ws-explicit(" else "") ||
               fn:string-join($cb ! category-as-string(.)," ") ||
               "." ||
               fn:string-join($ca ! category-as-string(.)," ") ||
               (if(fn:not($ws)) then ")" else "")
             })
           },(),$drs),
-          map:fold(function($s,$c,$_) {
-            $s, $index || ":     complete: " || $c
-          },(),$cs)
+          $cs ! ($index || ":     complete: " || .)
         })
       })
     )
@@ -858,7 +892,7 @@ declare %private function epsilon-expand($states,$rows,$index,$row)
   return
   $row(function($state,$sid,$parent,$bases) {
     $state(function($drs,$nte,$te,$cs,$h) {
-      let $id := map:get($nte,$p:epsilon-state)
+      let $id := array:get($nte,$p:epsilon-id)
       return if(fn:empty($id)) then $rows else
         let $row := row($states,$id,$index,())
         return if(rowset-contains($rows,$row)) then $rows else
@@ -867,13 +901,14 @@ declare %private function epsilon-expand($states,$rows,$index,$row)
   })
 };
 
-declare function make-parser($grammar,$start)
+declare function make-parser($grammar)
 {
-  let $states := dfa($grammar,$start)
+  let $states := dfa($grammar)
   let $chart := chart($states)
   return function($s) {
     let $chart := parse($states,$chart,0,fn:string-to-codepoints($s))
-    return parse-tree($chart)
+    let $_ := xdmp:log(chart-as-string($chart))
+    return parse-tree($states,$chart)
   }
 };
 
@@ -905,14 +940,17 @@ declare %private function complete($states,$chart,$rows,$index,$row)
 {
   $row(function($state,$sid,$parent,$bases) {
     $state(function($drs,$nte,$te,$cs,$h) {
-      map:fold(function($rows,$category,$v) {
+      fn:fold-left(function($rows,$category) {
         fn:fold-left(function($rows,$prow) {
           $prow(function($pstate,$psid,$pparent,$pbases) {
             $pstate(function($pdrs,$pnte,$pte,$pcs,$ph) {
-              let $id := map:get($pnte,$category)
+              let $id := array:get($pnte,$category)
               return if(fn:empty($id)) then $rows else
-                let $fn := if(fn:starts-with($category,"<")) then $bases
-                  else function() { element { $category } { $bases ! .() } }
+                let $fn := if($category < $p:start-id) then $bases else
+                  let $n := $states(function($states,$statemap,$pending,$names) {
+                    array:get($names,$category)
+                  })
+                  return function() { element { $n } { $bases ! .() } }
                 let $row := row($states,$id,$pparent,($pbases,$fn))
                 return if(rowset-contains($rows,$row)) then $rows else
                   let $rows := epsilon-expand($states,$rows,$index,$row)
@@ -925,14 +963,16 @@ declare %private function complete($states,$chart,$rows,$index,$row)
   })
 };
 
-declare %private function parse-tree($chart)
+declare %private function parse-tree($states,$chart)
 {
   for $row in chart-get($chart,array:size($chart) - 1)
   return $row(function($state,$sid,$parent,$bases) {
     $state(function($drs,$nte,$te,$cs,$h) {
-      if(map:contains($cs,$p:start-state)) then
-        document { $bases ! .() }
-      else ()
+      if(fn:not($cs = $p:start-id)) then () else
+        let $n := $states(function($states,$statemap,$pending,$names) {
+          array:get($names,$p:start-id)
+        })
+        return element { $n } { $bases ! .() }
     })
   })
 };
