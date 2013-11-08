@@ -104,12 +104,12 @@ declare %private function rulerhs-eq($a as item(), $b as item()) as xs:boolean
   })
 };
 
-declare function ruleset() as item()
+declare %private function ruleset() as item()
 {
   hamt:create()
 };
 
-declare function ruleset-put(
+declare %private function ruleset-put(
   $set as item(),
   $rule
 ) as item()
@@ -117,7 +117,7 @@ declare function ruleset-put(
   hamt:put(rulerhs-hash#1,rulerhs-eq#2,$set,$rule)
 };
 
-declare function ruleset-fold(
+declare %private function ruleset-fold(
   $f as function(item()*, item()*) as item()*,
   $z as item()*,
   $set as item()
@@ -379,14 +379,14 @@ declare function grammar($rules)
   )
 };
 
-declare function grammar-get($grammar,$category)
+declare %private function grammar-get($grammar,$category)
 {
   let $set := map:get($grammar,$category)
   where fn:exists($set)
   return ruleset-fold(function($s,$c){ $s,$c },(),$set)
 };
 
-declare function category-nullable($grammar,$category)
+declare %private function category-nullable($grammar,$category)
 {
   category-nullable($grammar,$category,())
 };
@@ -486,7 +486,7 @@ declare function dotted-ruleset-hash($set as item()) as xs:integer
  : State = DottedRuleSet map(string,integer) array(integer,integer) hamt(Category) integer
  :)
 
-declare function states-as-string($s)
+declare %private function states-as-string($s)
 {
   $s(function($states,$statemap,$pending) {
     fn:string-join((
@@ -525,7 +525,7 @@ declare function states-as-string($s)
   })
 };
 
-declare function states()
+declare %private function states()
 {
   let $states := array:create()
   let $statemap := array:create()
@@ -533,14 +533,14 @@ declare function states()
   return function($f) { $f($states,$statemap,$pending) }
 };
 
-declare function states-get($s,$id)
+declare %private function states-get($s,$id)
 {
   $s(function($states,$statemap,$pending) {
     array:get($states,$id)
   })
 };
 
-declare function states-add-state($s,$grammar,$state,$pe)
+declare %private function states-add-state($s,$grammar,$state,$pe)
 {
   $s(function($states,$statemap,$pending) {
     $state(function($drs,$nte,$te,$cs,$h) {
@@ -583,14 +583,14 @@ declare %private function statesarray-add-edge($states,$pe,$id)
   })
 };
 
-declare function states-next-pending-edge($s)
+declare %private function states-next-pending-edge($s)
 {
   $s(function($states,$statemap,$pending) {
     hamt:fold(function($r,$pe) { $pe },(),$pending)
   })
 };
 
-declare function pending-edge($s,$c) { function($f) { $f($s,$c) } };
+declare %private function pending-edge($s,$c) { function($f) { $f($s,$c) } };
 
 declare %private function pending-edge-hash($a as item()) as xs:integer
 {
@@ -609,7 +609,7 @@ declare %private function pending-edge-eq($a as item(), $b as item()) as xs:bool
   })
 };
 
-declare function state($drs)
+declare %private function state($drs)
 {
   let $nte := map:create()
   let $te := array:create()
@@ -651,7 +651,7 @@ declare %private function state-add-edge($state,$c,$id)
 
 (: -------------------------------------------------------------------------- :)
 
-declare function dfa($grammar,$start)
+declare %private function dfa($grammar,$start)
 {
   let $dr := dotted-rule($p:start-state,category-nt($start),fn:false())
   let $set := dotted-ruleset-put(dotted-ruleset(),$dr)
@@ -779,12 +779,12 @@ declare %private function row-eq($a,$b)
   })
 };
 
-declare function rowset() as item()
+declare %private function rowset() as item()
 {
   hamt:create()
 };
 
-declare function rowset-put(
+declare %private function rowset-put(
   $set as item(),
   $row
 ) as item()
@@ -792,7 +792,7 @@ declare function rowset-put(
   hamt:put(row-hash#1, row-eq#2, $set, $row)
 };
 
-declare function rowset-contains(
+declare %private function rowset-contains(
   $set as item(),
   $row
 ) as item()
@@ -800,7 +800,7 @@ declare function rowset-contains(
   hamt:contains(row-hash#1, row-eq#2, $set, $row)
 };
 
-declare function rowset-fold(
+declare %private function rowset-fold(
   $f as function(item()*, item()) as item()*,
   $z as item()*,
   $set as item()
@@ -809,24 +809,24 @@ declare function rowset-fold(
   hamt:fold($f,$z,$set)
 };
 
-declare %private function dfa-chart($states)
+declare %private function chart($states)
 {
-  let $rows := dfa-epsilon-expand($states,rowset(),0,row($states,0,0,()))
+  let $rows := epsilon-expand($states,rowset(),0,row($states,0,0,()))
   return array:put(array:create(),0,$rows)
 };
 
-declare %private function dfa-chart-get($chart,$index)
+declare %private function chart-get($chart,$index)
 {
   let $rows := array:get($chart,$index)
   return if(fn:empty($rows)) then () else
     rowset-fold(function($r,$row) { $r,$row },(),$rows)
 };
 
-declare function dfa-chart-as-string($chart)
+declare function chart-as-string($chart)
 {
   fn:string-join(
     for $index in (0 to (array:size($chart)-1))
-    let $rows := dfa-chart-get($chart,$index)
+    let $rows := chart-get($chart,$index)
     return (
       "========== Chart " || $index || " (" || fn:count($rows) || " rows) ==========",
       $rows ! .(function($state,$sid,$parent,$bases) {
@@ -852,7 +852,7 @@ declare function dfa-chart-as-string($chart)
   ,"&#10;")
 };
 
-declare %private function dfa-epsilon-expand($states,$rows,$index,$row)
+declare %private function epsilon-expand($states,$rows,$index,$row)
 {
   let $rows := rowset-put($rows,$row)
   return
@@ -862,20 +862,24 @@ declare %private function dfa-epsilon-expand($states,$rows,$index,$row)
       return if(fn:empty($id)) then $rows else
         let $row := row($states,$id,$index,())
         return if(rowset-contains($rows,$row)) then $rows else
-          dfa-epsilon-expand($states,$rows,$index,$row)
+          epsilon-expand($states,$rows,$index,$row)
     })
   })
 };
 
-declare function dfa-make-parser($states)
+declare function make-parser($grammar,$start)
 {
-  let $chart := dfa-chart($states)
-  return function($s) { dfa-parse($states,$chart,0,fn:string-to-codepoints($s)) }
+  let $states := dfa($grammar,$start)
+  let $chart := chart($states)
+  return function($s) {
+    let $chart := parse($states,$chart,0,fn:string-to-codepoints($s))
+    return parse-tree($chart)
+  }
 };
 
-declare %private function dfa-parse($states,$chart,$index,$tokens)
+declare %private function parse($states,$chart,$index,$tokens)
 {
-  let $rows := dfa-chart-get($chart,$index)
+  let $rows := chart-get($chart,$index)
   return if(fn:empty($tokens) or fn:empty($rows)) then $chart else
 
   let $newindex := $index + 1
@@ -888,16 +892,16 @@ declare %private function dfa-parse($states,$chart,$index,$tokens)
           let $fn := function() { text { fn:codepoints-to-string($token) } }
           let $row := row($states,$id,$parent,($bases,$fn))
           return if(rowset-contains($newrows,$row)) then $newrows else
-            dfa-epsilon-expand($states,$newrows,$newindex,$row)
+            epsilon-expand($states,$newrows,$newindex,$row)
       })
     })
   },rowset(),$rows)
-  let $newrows := rowset-fold(dfa-complete($states,$chart,?,$newindex,?),$newrows,$newrows)
+  let $newrows := rowset-fold(complete($states,$chart,?,$newindex,?),$newrows,$newrows)
   let $chart := array:put($chart,$newindex,$newrows)
-  return dfa-parse($states,$chart,$newindex,fn:tail($tokens))
+  return parse($states,$chart,$newindex,fn:tail($tokens))
 };
 
-declare %private function dfa-complete($states,$chart,$rows,$index,$row)
+declare %private function complete($states,$chart,$rows,$index,$row)
 {
   $row(function($state,$sid,$parent,$bases) {
     $state(function($drs,$nte,$te,$cs,$h) {
@@ -911,19 +915,19 @@ declare %private function dfa-complete($states,$chart,$rows,$index,$row)
                   else function() { element { $category } { $bases ! .() } }
                 let $row := row($states,$id,$pparent,($pbases,$fn))
                 return if(rowset-contains($rows,$row)) then $rows else
-                  let $rows := dfa-epsilon-expand($states,$rows,$index,$row)
-                  return dfa-complete($states,$chart,$rows,$index,$row)
+                  let $rows := epsilon-expand($states,$rows,$index,$row)
+                  return complete($states,$chart,$rows,$index,$row)
             })
           })
-        },$rows,dfa-chart-get($chart,$parent))
+        },$rows,chart-get($chart,$parent))
       },$rows,$cs)
     })
   })
 };
 
-declare function dfa-parse-tree($chart)
+declare %private function parse-tree($chart)
 {
-  for $row in dfa-chart-get($chart,array:size($chart) - 1)
+  for $row in chart-get($chart,array:size($chart) - 1)
   return $row(function($state,$sid,$parent,$bases) {
     $state(function($drs,$nte,$te,$cs,$h) {
       if(map:contains($cs,$p:start-state)) then
@@ -931,237 +935,4 @@ declare function dfa-parse-tree($chart)
       else ()
     })
   })
-};
-
-(: -------------------------------------------------------------------------- :)
-
-(:
- : Chart = array(integer,EdgeSet)
- : EdgeSet = hamt(Edge)
- : Edge = string Category* boolean integer (Edge | integer)*
- :)
-
-declare %private function edge($n,$c,$ws,$o,$b) { function($f) { $f($n,$c,$ws,$o,$b) } };
-declare %private function edge($n,$c,$ws,$o) { function($f) { $f($n,$c,$ws,$o,()) } };
-declare %private function edge-name($e) { $e(function($n,$c,$ws,$o,$b) { $n }) };
-declare %private function edge-categories($e) { $e(function($n,$c,$ws,$o,$b) { $c }) };
-declare %private function edge-origin($e) { $e(function($n,$c,$ws,$o,$b) { $o }) };
-declare %private function edge-bases($e) { $e(function($n,$c,$ws,$o,$b) { $b }) };
-
-declare %private function edge-hash($a as item()) as xs:integer
-{
-  $a(function($n,$c,$ws,$o,$b) {
-    hash((
-      fn:string-to-codepoints($n),
-      categories-hash($c),
-      xs:integer($ws),
-      $o
-    ))
-  })
-};
-
-declare %private function edge-eq($a as item(), $b as item()) as xs:boolean
-{
-  $a(function($n1,$c1,$ws1,$o1,$b1) {
-    $b(function($n2,$c2,$ws2,$o2,$b2) {
-      $n1 eq $n2 and
-      $o1 eq $o2 and
-      $ws1 eq $ws2 and
-      categories-eq($c1,$c2)
-    })
-  })
-};
-
-declare function edgeset() as item()
-{
-  hamt:create()
-};
-
-declare function edgeset-put(
-  $set as item(),
-  $edge
-) as item()
-{
-  hamt:put(edge-hash#1, edge-eq#2, $set, $edge)
-};
-
-declare function edgeset-contains(
-  $set as item(),
-  $edge
-) as item()
-{
-  hamt:contains(edge-hash#1, edge-eq#2, $set, $edge)
-};
-
-declare function edgeset-fold(
-  $f as function(item()*, item()) as item()*,
-  $z as item()*,
-  $set as item()
-) as item()*
-{
-  hamt:fold($f,$z,$set)
-};
-
-declare function chart()
-{
-  array:create()
-};
-
-declare function chart-put(
-  $chart as item(),
-  $index,
-  $edge
-) as item()
-{
-  let $set := array:get($chart,$index)
-  let $set := if(fn:exists($set)) then $set else edgeset()
-  return array:put($chart,$index,edgeset-put($set,$edge))
-};
-
-declare function chart-contains(
-  $chart as item(),
-  $index,
-  $edge
-) as xs:boolean
-{
-  let $set := array:get($chart,$index)
-  return if(fn:exists($set)) then edgeset-contains($set,$edge) else fn:false()
-};
-
-declare function chart-get(
-  $chart as item(),
-  $index
-) as item()*
-{
-  let $set := array:get($chart,$index)
-  where fn:exists($set)
-  return edgeset-fold(function($z,$e){$z,$e},(),$set)
-};
-
-declare function chart-as-string($chart)
-{
-  fn:string-join(
-    for $s in array:fold(function($s,$index,$edgeset) {
-      edgeset-fold(function($s,$edge) {
-          $s,
-          $edge(function($n,$c,$ws,$o,$b) {
-            $index || ": (" || $o || ") " || $n || " ::= " ||
-            (if(fn:not($ws)) then "ws_explicit(" else "") ||
-            fn:string-join($b ! (typeswitch(.) case xs:integer return "'" || codepoint(.) || "'" default return edge-name(.))," ") ||
-            "." ||
-            fn:string-join($c ! category-as-string(.)," ") ||
-            (if(fn:not($ws)) then ")" else "")
-          })
-        },$s,$edgeset)
-    },(),$chart)
-    order by $s
-    return $s
-  ,"&#10;")
-};
-
-declare function parse-tree($chart,$tokens)
-{
-  for $edge in chart-get($chart,fn:string-length($tokens))
-  where edge-name($edge) eq $p:start-state and fn:empty(edge-categories($edge))
-  return parse-tree-helper(edge-bases($edge))
-};
-
-declare %private function parse-tree-helper($edge)
-{
-  $edge(function($n,$c,$ws,$o,$bases) {
-    element { $n } {
-      for $b in $bases
-      return typeswitch($b)
-        case xs:integer return text { fn:codepoints-to-string($b) }
-        default return parse-tree-helper($b)
-    }
-  })
-};
-
-(: -------------------------------------------------------------------------- :)
-
-declare function make-parser($grammar,$start)
-{
-  let $edge := edge($p:start-state,category-nt($start),fn:false(),0)
-  let $chart := chart-put(chart(),0,$edge)
-  let $chart := predict($grammar,$chart,0,$edge)
-  return function($s) { parse($grammar,$chart,0,fn:string-to-codepoints($s)) }
-};
-
-declare %private function parse($grammar,$chart,$index,$tokens)
-{
-  if(fn:empty($tokens)) then $chart else
-
-  let $newindex := $index + 1
-  let $chart := fn:fold-left(scan($grammar,?,$newindex,fn:head($tokens),?),$chart,chart-get($chart,$index))
-  let $chart := fn:fold-left(complete($grammar,?,$newindex,?),$chart,chart-get($chart,$newindex))
-  let $chart := fn:fold-left(predict($grammar,?,$newindex,?),$chart,chart-get($chart,$newindex))
-  return parse($grammar,$chart,$newindex,fn:tail($tokens))
-};
-
-declare %private function scan($grammar,$chart,$index,$token,$edge)
-{
-  $edge(function($n,$c,$ws,$o,$b) {
-    let $category := fn:head($c)
-    return
-      if(fn:empty($category) or $category(
-          (:nt:) function($h,$s) { fn:true() },
-          (:t:) function($h,$s) { $s ne $token })) then $chart
-      else
-        let $newedge := edge($n,fn:tail($c),$ws,$o,($b,$token))
-        return chart-put($chart,$index,$newedge)
-  })
-};
-
-declare %private function complete($grammar,$chart,$index,$edge)
-{
-  $edge(function($n,$c,$ws,$o,$b) {
-    if(fn:exists($c)) then $chart else
-    fn:fold-left(
-      function($chart,$newedge) {
-        if(chart-contains($chart,$index,$newedge)) then $chart
-        else complete($grammar,chart-put($chart,$index,$newedge),$index,$newedge)
-      },
-      $chart,
-      if($n eq $p:ws-state) then
-        for $oedge in chart-get($chart,$o)
-        return $oedge(function($on,$oc,$ows,$oo,$ob) {
-          if($ows) then $oedge else ()
-        })
-      else
-        for $oedge in chart-get($chart,$o)
-        return $oedge(function($on,$oc,$ows,$oo,$ob) {
-          for $category in fn:head($oc)
-          where $category(
-            (:nt:) function($h,$s) { $s eq $n },
-            (:t:) function($h,$s) { fn:false() })
-          return edge($on,fn:tail($oc),$ows,$oo,($ob,$edge))
-        })
-    )
-  })
-};
-
-declare %private function predict($grammar,$chart,$index,$edge)
-{
-  fn:fold-left(
-    function($chart,$newedge) {
-      if(chart-contains($chart,$index,$newedge)) then $chart
-      else predict($grammar,chart-put($chart,$index,$newedge),$index,$newedge)
-    },
-    $chart,
-    $edge(function($n,$c,$ws,$o,$b) {
-      if(fn:not($ws)) then () else
-        for $rule in grammar-get($grammar,$p:ws-state)
-        return $rule(function($c,$ws) { edge($p:ws-state,$c,$ws,$index) }),
-      for $c1 in fn:head($c)
-      return $c1(
-        (:nt:) function($h,$category) {
-          for $rule in grammar-get($grammar,$category)
-          return $rule(function($c,$ws) { edge($category,$c,$ws,$index) }),
-          if(category-nullable($grammar,$category)) then
-            edge($n,fn:tail($c),$ws,$o,($b,edge($category,(),fn:true(),$index))) else ()
-        },
-        (:t:) function($h,$s) { () })
-    })
-  )
 };
