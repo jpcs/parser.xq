@@ -26,7 +26,8 @@ import module namespace hamt = "http://snelson.org.uk/functions/hamt" at "lib/ha
  : Grammar = map(string,Rule)
  : Rule = (integer, RuleSet)
  : RuleSet = hamt(RuleRHS)
- : RuleRHS = Category* boolean
+ : RuleRHS = Category* boolean ActionFunction
+ : ActionFunction = function(item()*) as item()*
  : Category = NT integer string | T integer integer
  :)
 
@@ -92,19 +93,22 @@ declare %private function categories-eq($a as item()*, $b as item()*) as xs:bool
     },$a,$b) satisfies $p)
 };
 
-declare %private function rulerhs($categories,$ws) { function($f) { $f($categories,$ws) } };
+declare %private function rulerhs($categories,$ws,$f)
+{
+  function($g) { $g($categories,$ws,$f) }
+};
 
 declare %private function rulerhs-hash($a as item()) as xs:integer
 {
-  $a(function($c,$ws) {
+  $a(function($c,$ws,$f) {
     hash((categories-hash($c),xs:integer($ws)))
   })
 };
 
 declare %private function rulerhs-eq($a as item(), $b as item()) as xs:boolean
 {
-  $a(function($ac,$aws) {
-    $b(function($bc,$bws) {
+  $a(function($ac,$aws,$af) {
+    $b(function($bc,$bws,$bf) {
       categories-eq($ac,$bc) and $aws eq $bws
     })
   })
@@ -157,27 +161,35 @@ declare %private function category-as-string($c)
 
 declare function grammar-as-string($grammar)
 {
-  fn:string-join(map:fold(
-    function($z,$n,$rule) {
-      $z,
-      "(" || fn:head($rule) || ") " || $n || " ::= " ||
+  fn:string-join(
+    for $r in map:fold(function($z,$n,$rule) { $z,function() { $n,$rule } },(),$grammar)
+    let $r_ := $r()
+    let $n := fn:head($r_)
+    let $r_ := fn:tail($r_)
+    let $id := fn:head($r_)
+    let $ruleset := fn:tail($r_)
+    where $id ne $p:epsilon-id
+    order by $id
+    return (
+      "(" || $id || ") " || $n || " ::= " ||
       fn:string-join(
         ruleset-fold(function($s,$rule) {
           $s,
-          $rule(function($c,$ws) {
+          $rule(function($c,$ws,$f) {
             (if(fn:not($ws)) then "ws-explicit(" else "") ||
             fn:string-join($c ! category-as-string(.)," ") ||
             (if(fn:not($ws)) then ")" else "")
           })
-        },(),fn:tail($rule)),
+        },(),$ruleset),
       " | ")
-    },(),$grammar),"&#10;")
+    ),
+  "&#10;")
 };
 
-declare %private function make-rules($n,$i,$c,$r,$ws)
+declare %private function make-rules($n,$i,$c,$r,$ws,$f)
 {
-  if(fn:empty($r)) then ($i,function($f) { $f($n,$c,$ws) })
-  else fn:head($r)($n,$i,$c,fn:tail($r),$ws)
+  if(fn:empty($r)) then ($i,function($g) { $g($n,$c,$ws,$f) })
+  else fn:head($r)($n,$i,$c,fn:tail($r),$ws,$f)
 };
 
 declare %private function chain($i,$fns)
@@ -190,33 +202,31 @@ declare %private function chain($i,$fns)
 
 declare function term($value)
 {
-  function($n,$i,$c,$r,$ws) {
-    if((fn:empty($c) and fn:empty($r)) or fn:not($ws)) then
-      make-rules($n,$i,($c,fn:string-to-codepoints($value) ! category-t(.)),$r,fn:false())
-    else
-      let $n_ := $n || "_" || $i
-      let $nt := non-term($n_)
-      return (
-        make-rules($n,$i+1,$c,($nt,$r),$ws),
-        fn:tail(make-rules($n_,1,fn:string-to-codepoints($value) ! category-t(.),(),fn:false()))
-      )
+  function($n,$i,$c,$r,$ws,$f) {
+    let $n_ := $n || "_" || $i
+    let $nt := non-term($n_)
+    return (
+      make-rules($n,$i+1,$c,($nt,$r),$ws,$f),
+      fn:tail(make-rules($n_,1,fn:string-to-codepoints($value) ! category-t(.),(),fn:false(),
+        fn:codepoints-to-string#1))
+    )
   }
 };
 
 declare function non-term($value)
 {
-  function($n,$i,$c,$r,$ws) {
-    make-rules($n,$i,($c, category-nt($value)),$r,$ws)
+  function($n,$i,$c,$r,$ws,$f) {
+    make-rules($n,$i,($c,category-nt($value)),$r,$ws,$f)
   }
 };
 
 declare function optional($b)
 {
   let $b_ := make-non-terms($b)
-  return function($n,$i,$c,$r,$ws) {
+  return function($n,$i,$c,$r,$ws,$f) {
     chain($i,(
-      make-rules($n,?,$c,$r,$ws),
-      make-rules($n,?,$c,($b_,$r),$ws)
+      make-rules($n,?,$c,$r,$ws,$f),
+      make-rules($n,?,$c,($b_,$r),$ws,$f)
     ))
   }
 };
@@ -230,44 +240,32 @@ declare function one-or-more($b,$s)
 {
   let $b_ := make-non-terms($b)
   let $s_ := make-non-terms($s)
-  return function($n,$i,$c,$r,$ws) {
-    if(fn:empty($r)) then
-      chain($i,(
-        make-rules($n,?,$c,$b_,$ws),
-        make-rules($n,?,(),(non-term($n),$s_,$b_),$ws)
-      ))
-    else
-      let $n_ := $n || "_" || $i
-      let $nt := non-term($n_)
-      return (
-        make-rules($n,$i+1,$c,($nt,$r),$ws),
-        fn:tail(chain(1,(
-          make-rules($n_,?,(),$b_,$ws),
-          make-rules($n_,?,(),($nt,$s_,$b_),$ws)
-        )))
-      )
+  return function($n,$i,$c,$r,$ws,$f) {
+    let $n_ := $n || "_" || $i
+    let $nt := non-term($n_)
+    return (
+      make-rules($n,$i+1,$c,($nt,$r),$ws,$f),
+      fn:tail(chain(1,(
+        make-rules($n_,?,(),$b_,$ws,()),
+        make-rules($n_,?,(),($nt,$s_,$b_),$ws,())
+      )))
+    )
   }
 };
 
 declare function zero-or-more($b)
 {
   let $b_ := make-non-terms($b)
-  return function($n,$i,$c,$r,$ws) {
-    if(fn:empty($r)) then
-      chain($i,(
-        make-rules($n,?,$c,(),$ws),
-        make-rules($n,?,(),(non-term($n),$b_),$ws)
-      ))
-    else
-      let $n_ := $n || "_" || $i
-      let $nt := non-term($n_)
-      return (
-        make-rules($n,$i+1,$c,($nt,$r),$ws),
-        fn:tail(chain(1,(
-          make-rules($n_,?,(),(),$ws),
-          make-rules($n_,?,(),($nt,$b_),$ws)
-        )))
-      )
+  return function($n,$i,$c,$r,$ws,$f) {
+    let $n_ := $n || "_" || $i
+    let $nt := non-term($n_)
+    return (
+      make-rules($n,$i+1,$c,($nt,$r),$ws,$f),
+      fn:tail(chain(1,(
+        make-rules($n_,?,(),(),$ws,()),
+        make-rules($n_,?,(),($nt,$b_),$ws,())
+      )))
+    )
   }
 };
 
@@ -280,10 +278,10 @@ declare function choice($b1,$b2)
 {
   let $b1_ := make-non-terms($b1)
   let $b2_ := make-non-terms($b2)
-  return function($n,$i,$c,$r,$ws) {
+  return function($n,$i,$c,$r,$ws,$f) {
     chain($i,(
-      make-rules($n,?,$c,($b1_,$r),$ws),
-      make-rules($n,?,$c,($b2_,$r),$ws)
+      make-rules($n,?,$c,($b1_,$r),$ws,$f),
+      make-rules($n,?,$c,($b2_,$r),$ws,$f)
     ))
   }
 };
@@ -293,11 +291,11 @@ declare function choice($b1,$b2,$b3)
   let $b1_ := make-non-terms($b1)
   let $b2_ := make-non-terms($b2)
   let $b3_ := make-non-terms($b3)
-  return function($n,$i,$c,$r,$ws) {
+  return function($n,$i,$c,$r,$ws,$f) {
     chain($i,(
-      make-rules($n,?,$c,($b1_,$r),$ws),
-      make-rules($n,?,$c,($b2_,$r),$ws),
-      make-rules($n,?,$c,($b3_,$r),$ws)
+      make-rules($n,?,$c,($b1_,$r),$ws,$f),
+      make-rules($n,?,$c,($b2_,$r),$ws,$f),
+      make-rules($n,?,$c,($b3_,$r),$ws,$f)
     ))
   }
 };
@@ -308,12 +306,12 @@ declare function choice($b1,$b2,$b3,$b4)
   let $b2_ := make-non-terms($b2)
   let $b3_ := make-non-terms($b3)
   let $b4_ := make-non-terms($b4)
-  return function($n,$i,$c,$r,$ws) {
+  return function($n,$i,$c,$r,$ws,$f) {
     chain($i,(
-      make-rules($n,?,$c,($b1_,$r),$ws),
-      make-rules($n,?,$c,($b2_,$r),$ws),
-      make-rules($n,?,$c,($b3_,$r),$ws),
-      make-rules($n,?,$c,($b4_,$r),$ws)
+      make-rules($n,?,$c,($b1_,$r),$ws,$f),
+      make-rules($n,?,$c,($b2_,$r),$ws,$f),
+      make-rules($n,?,$c,($b3_,$r),$ws,$f),
+      make-rules($n,?,$c,($b4_,$r),$ws,$f)
     ))
   }
 };
@@ -325,13 +323,13 @@ declare function choice($b1,$b2,$b3,$b4,$b5)
   let $b3_ := make-non-terms($b3)
   let $b4_ := make-non-terms($b4)
   let $b5_ := make-non-terms($b5)
-  return function($n,$i,$c,$r,$ws) {
+  return function($n,$i,$c,$r,$ws,$f) {
     chain($i,(
-      make-rules($n,?,$c,($b1_,$r),$ws),
-      make-rules($n,?,$c,($b2_,$r),$ws),
-      make-rules($n,?,$c,($b3_,$r),$ws),
-      make-rules($n,?,$c,($b4_,$r),$ws),
-      make-rules($n,?,$c,($b5_,$r),$ws)
+      make-rules($n,?,$c,($b1_,$r),$ws,$f),
+      make-rules($n,?,$c,($b2_,$r),$ws,$f),
+      make-rules($n,?,$c,($b3_,$r),$ws,$f),
+      make-rules($n,?,$c,($b4_,$r),$ws,$f),
+      make-rules($n,?,$c,($b5_,$r),$ws,$f)
     ))
   }
 };
@@ -344,14 +342,14 @@ declare function choice($b1,$b2,$b3,$b4,$b5,$b6)
   let $b4_ := make-non-terms($b4)
   let $b5_ := make-non-terms($b5)
   let $b6_ := make-non-terms($b6)
-  return function($n,$i,$c,$r,$ws) {
+  return function($n,$i,$c,$r,$ws,$f) {
     chain($i,(
-      make-rules($n,?,$c,($b1_,$r),$ws),
-      make-rules($n,?,$c,($b2_,$r),$ws),
-      make-rules($n,?,$c,($b3_,$r),$ws),
-      make-rules($n,?,$c,($b4_,$r),$ws),
-      make-rules($n,?,$c,($b5_,$r),$ws),
-      make-rules($n,?,$c,($b6_,$r),$ws)
+      make-rules($n,?,$c,($b1_,$r),$ws,$f),
+      make-rules($n,?,$c,($b2_,$r),$ws,$f),
+      make-rules($n,?,$c,($b3_,$r),$ws,$f),
+      make-rules($n,?,$c,($b4_,$r),$ws,$f),
+      make-rules($n,?,$c,($b5_,$r),$ws,$f),
+      make-rules($n,?,$c,($b6_,$r),$ws,$f)
     ))
   }
 };
@@ -371,22 +369,47 @@ declare function rule($n,$categories)
 
 declare function rule($n,$categories,$options)
 {
+  let $valid := try { xs:NCName($n) } catch * { () }
+  return if(try { fn:empty(xs:NCName($n)) } catch * { fn:true() }) then
+    fn:error(xs:QName("p:BADNAME"),"Invalid rule name: " || $n)
+  else
+    rule($n,$categories,$options,tree($n,?))
+};
+
+declare function rule($n,$categories,$options,$f)
+{
   let $ws := fn:not($options = $p:ws-option)
-  return fn:tail(make-rules($n,1,(),make-non-terms($categories),$ws))
+  return fn:tail(make-rules($n,1,(),make-non-terms($categories),$ws,$f))
+};
+
+declare function token($n,$categories)
+{
+  rule($n,$categories,$p:ws-option,fn:string-join#1)
+};
+
+declare function ws($n,$categories)
+{
+  ws($n,$categories,function($ch) { () })
+};
+
+declare function ws($n,$categories,$f)
+{
+  rule($n,$categories,$p:ws-option,$f),
+  rule($p:ws-state,$n,$p:ws-option,())
 };
 
 declare function grammar($rules)
 {
   let $map := fn:fold-left(
     function($map,$rule) {
-      $rule(function($category,$categories,$ws) {
+      $rule(function($category,$categories,$ws,$f) {
         let $rule := map:get($map,$category)
         let $id :=
           if($category eq $p:ws-state) then $p:ws-id
           else if(fn:exists($rule)) then fn:head($rule)
           else (map:count($map) + $p:start-id)
         let $set := if(fn:exists($rule)) then fn:tail($rule) else ruleset()
-        return map:put($map,$category,($id,ruleset-put($set,rulerhs($categories,$ws))))
+        return map:put($map,$category,($id,ruleset-put($set,rulerhs($categories,$ws,$f))))
       })
     },
     map:create(),
@@ -419,42 +442,74 @@ declare %private function category-nullable($grammar,$category,$searched)
   if($category = $searched) then fn:true() else
   some $rule in grammar-get($grammar,$category)
   satisfies
-    (every $rc in $rule(function($c,$ws) { $c }) satisfies $rc(
+    (every $rc in $rule(function($c,$ws,$f) { $c }) satisfies $rc(
       (:nt:) function($h,$s) { fn:true() },
       (:t:) function($h,$s) { fn:false() })) and
-    (every $rc in $rule(function($c,$ws) { $c }) satisfies $rc(
+    (every $rc in $rule(function($c,$ws,$f) { $c }) satisfies $rc(
       (:nt:) function($h,$s) { category-nullable($grammar,$s,($searched,$category)) },
       (:t:) function($h,$s) { fn:false() }))
+};
+
+(: -------------------------------------------------------------------------- :)
+(: Built-In Actions :)
+
+declare function tree($n,$ch)
+{
+  function() {
+    element { $n } {
+      $ch ! (
+        typeswitch(.)
+        case xs:string return text { . }
+        default return .()
+      )
+    }
+  }
+};
+
+declare function children($ch)
+{
+  function() {
+    $ch ! (
+      typeswitch(.)
+      case xs:string return text { . }
+      default return .()
+    )
+  }
+};
+
+declare function discard($ch)
+{
+  function() { () }
 };
 
 (: -------------------------------------------------------------------------- :)
 
 (:
  : DottedRuleSet = hamt(DottedRule)
- : DottedRule = string Category* Category* boolean integer
+ : DottedRule = string Category* Category* boolean integer ActionFunction
  :)
 
-declare %private function dotted-rule($n,$c,$ws)
+declare %private function dotted-rule($n,$c,$ws,$f)
 {
-  dotted-rule($n,(),$c,$ws)
+  dotted-rule($n,(),$c,$ws,$f)
 };
 
-declare %private function dotted-rule($n,$cb,$ca,$ws)
+declare %private function dotted-rule($n,$cb,$ca,$ws,$f)
 {
   let $h := hash((
       fn:string-to-codepoints($n),
       categories-hash($ca),
       xs:integer($ws)
     )) 
-  return function($f) { $f($n,$cb,$ca,$ws,$h) }
+  return function($g) { $g($n,$cb,$ca,$ws,$h,$f) }
 };
 
-declare %private function dotted-rule-hash($a as item()) as xs:integer { $a(function($n,$cb,$ca,$ws,$h) { $h }) };
+declare %private function dotted-rule-hash($a as item()) as xs:integer { $a(function($n,$cb,$ca,$ws,$h,$f) { $h }) };
 
 declare %private function dotted-rule-eq($a as item(), $b as item()) as xs:boolean
 {
-  $a(function($n1,$cb1,$ca1,$ws1,$h1) {
-    $b(function($n2,$cb2,$ca2,$ws2,$h2) {
+  $a(function($n1,$cb1,$ca1,$ws1,$h1,$f1) {
+    $b(function($n2,$cb2,$ca2,$ws2,$h2,$f2) {
       $n1 eq $n2 and
       $ws1 eq $ws2 and
       categories-eq($ca1,$ca2)
@@ -506,7 +561,7 @@ declare function dotted-ruleset-hash($set as item()) as xs:integer
 (:
  : States = array(integer,State) array(state-hash(State),integer) hamt(PendingEdge)
  : PendingEdge = integer, Category
- : State = DottedRuleSet array(integer,integer) array(integer,integer) integer* integer
+ : State = DottedRuleSet array(integer,integer) array(integer,integer) (integer,ActionFunction)* integer
  :)
 
 declare %private function states-as-string($s)
@@ -516,11 +571,11 @@ declare %private function states-as-string($s)
       for $id in (0 to (array:size($states)-1))
       let $state := array:get($states,$id)
       return
-        $state(function($drs,$nte,$te,$cs,$h) {
+        $state(function($drs,$nte,$te,$fns,$h) {
           "State " || $id || " (" || $h || ")",
           dotted-ruleset-fold(function($s,$dr) {
             $s,
-            $dr(function($n,$cb,$ca,$ws,$h) {
+            $dr(function($n,$cb,$ca,$ws,$h,$f) {
               "  " || $n || " ::= " ||
               (if(fn:not($ws)) then "ws-explicit(" else "") ||
               fn:string-join($cb ! category-as-string(.)," ") ||
@@ -535,7 +590,7 @@ declare %private function states-as-string($s)
           array:fold(function($s,$t,$sid) {
             $s, "    edge: '" || codepoint($t) || "' -> " || $sid
           },(),$te),
-          $cs ! ("    complete: " || .)
+          $fns ! ("    complete: " || fn:head(.()))
         }),
       hamt:fold(function($s,$pe) {
         $s,$pe(function($s,$c) {
@@ -567,7 +622,7 @@ declare %private function states-get($s,$id)
 declare %private function states-add-state($s,$grammar,$state,$pe)
 {
   $s(function($states,$statemap,$pending,$names) {
-    $state(function($drs,$nte,$te,$cs,$h) {
+    $state(function($drs,$nte,$te,$fns,$h) {
       let $id := array:get($statemap,$h)
       return if(fn:exists($id)) then
         let $states_ := if(fn:empty($pe)) then $states else
@@ -582,14 +637,14 @@ declare %private function states-add-state($s,$grammar,$state,$pe)
         let $states_ := if(fn:empty($pe)) then $states_ else
           statesarray-add-edge($states_,$grammar,$pe,$id)
         let $pending_ := dotted-ruleset-fold(function($p,$dr) {
-            $dr(function($n,$cb,$ca,$ws,$h) {
+            $dr(function($n,$cb,$ca,$ws,$h,$f) {
               if(fn:empty($ca)) then $p else
               hamt:put(pending-edge-hash#1,pending-edge-eq#2,$p,pending-edge($id,fn:head($ca)))
             })
           },$pending,$drs)
         let $ws := fn:exists(grammar-get($grammar,$p:ws-state)) and
           dotted-ruleset-fold(function($b,$dr) {
-            $b or $dr(function($n,$cb,$ca,$ws,$h) { $ws }) },fn:false(),$drs)
+            $b or $dr(function($n,$cb,$ca,$ws,$h,$f) { $ws }) },fn:false(),$drs)
         let $pending_ := if(fn:not($ws)) then $pending_ else
           hamt:put(pending-edge-hash#1,pending-edge-eq#2,$pending_,
             pending-edge($id,$p:ws-category))
@@ -639,20 +694,27 @@ declare %private function state($grammar,$drs)
   let $te := array:create()
   let $cs := fn:distinct-values(dotted-ruleset-fold(function($cs,$dr) {
     $cs,
-    $dr(function($n,$cb,$ca,$ws,$h) {
+    $dr(function($n,$cb,$ca,$ws,$h,$f) {
       if(fn:exists($ca)) then () else grammar-get-id($grammar,$n)
     })
   },(),$drs))
+  let $fns := for $c in $cs
+    return dotted-ruleset-fold(function($r,$dr) {
+      $dr(function($n,$cb,$ca,$ws,$h,$f) {
+        if(fn:exists($ca) or grammar-get-id($grammar,$n) ne $c) then $r
+        else function() { $c, $f }
+      })
+    },(),$drs)
   let $h := dotted-ruleset-hash($drs)
-  return function($f) { $f($drs,$nte,$te,$cs,$h) }
+  return function($f) { $f($drs,$nte,$te,$fns,$h) }
 };
 
-declare %private function state-hash($a as item()) as xs:integer { $a(function($drs,$nte,$te,$cs,$h) { $h }) };
+declare %private function state-hash($a as item()) as xs:integer { $a(function($drs,$nte,$te,$fns,$h) { $h }) };
 
 declare %private function state-eq($a as item(), $b as item()) as xs:boolean
 {
-  $a(function($drs1,$nte1,$te1,$cs1,$h1) {
-    $b(function($drs2,$nte2,$te2,$cs2,$h2) {
+  $a(function($drs1,$nte1,$te1,$fns1,$h1) {
+    $b(function($drs2,$nte2,$te2,$fns2,$h2) {
       $h1 eq $h2
     })
   })
@@ -660,16 +722,16 @@ declare %private function state-eq($a as item(), $b as item()) as xs:boolean
 
 declare %private function state-add-edge($state,$grammar,$c,$id)
 {
-  $state(function($drs,$nte,$te,$cs,$h) {
+  $state(function($drs,$nte,$te,$fns,$h) {
     $c(
       (:nt:) function($h,$category) {
         let $cid := grammar-get-id($grammar,$category)
         let $nte := array:put($nte,$cid,$id)
-        return function($f) { $f($drs,$nte,$te,$cs,$h) }
+        return function($f) { $f($drs,$nte,$te,$fns,$h) }
       },
       (:t:) function($h,$s) {
         let $te := array:put($te,$s,$id)
-        return function($f) { $f($drs,$nte,$te,$cs,$h) }
+        return function($f) { $f($drs,$nte,$te,$fns,$h) }
       }
     )
   })
@@ -687,7 +749,7 @@ declare %private function dfa($grammar)
   let $drs := map:fold(function($r,$category,$rule) {
     if(fn:head($rule) ne $p:start-id) then $r
     else ruleset-fold(function($r,$rule){
-      $r, $rule(function($c,$ws) { dotted-rule($category,$c,$ws) })
+      $r, $rule(function($c,$ws,$f) { dotted-rule($category,$c,$ws,$f) })
     },$r,fn:tail($rule))
   },(),$grammar)
   let $set := fn:fold-left(dotted-ruleset-put#2,dotted-ruleset(),$drs)
@@ -702,7 +764,7 @@ declare %private function dfa-process-pending($grammar,$s)
     return if(fn:empty($pe)) then $s else
       $pe(function($sid,$c) {
         let $state := array:get($states,$sid)
-        return $state(function($drs,$nte,$te,$cs,$h) {
+        return $state(function($drs,$nte,$te,$fns,$h) {
           let $newset := dotted-ruleset-fold(
             dfa-scan($grammar,?,$c,?),dotted-ruleset(),$drs)
           let $newstates := dfa-build-state($grammar,$s,$newset,$pe)
@@ -726,7 +788,7 @@ declare %private function dfa-build-state($grammar,$states,$set,$pe)
 
 declare %private function dfa-scan($grammar,$set,$token,$dr)
 {
-  $dr(function($n,$cb,$ca,$ws,$h) {
+  $dr(function($n,$cb,$ca,$ws,$h,$f) {
     if($ws and categories-eq($p:ws-category,$token)) then
       dotted-ruleset-put($set,$dr)
     else
@@ -734,7 +796,7 @@ declare %private function dfa-scan($grammar,$set,$token,$dr)
     return
       if(fn:not(categories-eq($category,$token))) then $set
       else
-        let $newdr := dotted-rule($n,($cb,fn:head($ca)),fn:tail($ca),$ws)
+        let $newdr := dotted-rule($n,($cb,fn:head($ca)),fn:tail($ca),$ws,$f)
         return dotted-ruleset-put($set,$newdr)
   })
 };
@@ -747,12 +809,12 @@ declare %private function dfa-predict-nullable($grammar,$set,$dr)
       else dfa-predict-nullable($grammar,dotted-ruleset-put($set,$newdr),$newdr)
     },
     $set,
-    $dr(function($n,$cb,$ca,$ws,$h) {
+    $dr(function($n,$cb,$ca,$ws,$h,$f) {
       for $c1 in fn:head($ca)
       return $c1(
         (:nt:) function($h,$category) {
           if(category-nullable($grammar,$category)) then
-            dotted-rule($n,($cb,fn:head($ca)),fn:tail($ca),$ws) else ()
+            dotted-rule($n,($cb,fn:head($ca)),fn:tail($ca),$ws,$f) else ()
         },
         (:t:) function($h,$s) { () })
     })
@@ -764,20 +826,43 @@ declare %private function dfa-predict($grammar,$set,$dr)
   fn:fold-left(
     function($set,$newdr) {
       if(dotted-ruleset-contains($set,$newdr)) then $set
-      else
-        dfa-predict-nullable($grammar,
-          dfa-predict($grammar,dotted-ruleset-put($set,$newdr),$newdr),$newdr)
+      else dfa-predict-and-nullable($grammar,dotted-ruleset-put($set,$newdr),$newdr)
     },
     $set,
-    $dr(function($n,$cb,$ca,$ws,$h) {
+    $dr(function($n,$cb,$ca,$ws,$h,$f) {
       if(fn:not($ws)) then () else
         for $rule in grammar-get($grammar,$p:ws-state)
-        return $rule(function($c,$ws) { dotted-rule($p:ws-state,$c,$ws) }),
+        return $rule(function($c,$ws,$f) { dotted-rule($p:ws-state,$c,$ws,$f) }),
       for $c1 in fn:head($ca)
       return $c1(
         (:nt:) function($h,$category) {
           for $rule in grammar-get($grammar,$category)
-          return $rule(function($c,$ws) { dotted-rule($category,$c,$ws) })
+          return $rule(function($c,$ws,$f) { dotted-rule($category,$c,$ws,$f) })
+        },
+        (:t:) function($h,$s) { () })
+    })
+  )
+};
+
+declare %private function dfa-predict-and-nullable($grammar,$set,$dr)
+{
+  fn:fold-left(
+    function($set,$newdr) {
+      if(dotted-ruleset-contains($set,$newdr)) then $set
+      else dfa-predict-and-nullable($grammar,dotted-ruleset-put($set,$newdr),$newdr)
+    },
+    $set,
+    $dr(function($n,$cb,$ca,$ws,$h,$f) {
+      if(fn:not($ws)) then () else
+        for $rule in grammar-get($grammar,$p:ws-state)
+        return $rule(function($c,$ws,$f) { dotted-rule($p:ws-state,$c,$ws,$f) }),
+      for $c1 in fn:head($ca)
+      return $c1(
+        (:nt:) function($h,$category) {
+          if(category-nullable($grammar,$category)) then
+            dotted-rule($n,($cb,fn:head($ca)),fn:tail($ca),$ws,$f) else (),
+          for $rule in grammar-get($grammar,$category)
+          return $rule(function($c,$ws,$f) { dotted-rule($category,$c,$ws,$f) })
         },
         (:t:) function($h,$s) { () })
     })
@@ -867,10 +952,10 @@ declare function chart-as-string($chart)
       "========== Chart " || $index || " (" || fn:count($rows) || " rows) ==========",
       $rows ! .(function($state,$sid,$parent,$bases) {
         $index || ": State: " || $sid || ", Parent Chart:" || $parent || ", Bases: " || fn:count($bases),
-        $state(function($drs,$nte,$te,$cs,$h) {
+        $state(function($drs,$nte,$te,$fns,$h) {
           dotted-ruleset-fold(function($s,$dr) {
             $s,
-            $dr(function($n,$cb,$ca,$ws,$h) {
+            $dr(function($n,$cb,$ca,$ws,$h,$f) {
               $index || ":   " || $n || " ::= " ||
               (if(fn:not($ws)) then "ws-explicit(" else "") ||
               fn:string-join($cb ! category-as-string(.)," ") ||
@@ -879,7 +964,7 @@ declare function chart-as-string($chart)
               (if(fn:not($ws)) then ")" else "")
             })
           },(),$drs),
-          $cs ! ($index || ":     complete: " || .)
+          $fns ! ($index || ":     complete: " || fn:head(.()))
         })
       })
     )
@@ -891,7 +976,7 @@ declare %private function epsilon-expand($states,$rows,$index,$row)
   let $rows := rowset-put($rows,$row)
   return
   $row(function($state,$sid,$parent,$bases) {
-    $state(function($drs,$nte,$te,$cs,$h) {
+    $state(function($drs,$nte,$te,$fns,$h) {
       let $id := array:get($nte,$p:epsilon-id)
       return if(fn:empty($id)) then $rows else
         let $row := row($states,$id,$index,())
@@ -903,12 +988,14 @@ declare %private function epsilon-expand($states,$rows,$index,$row)
 
 declare function make-parser($grammar)
 {
+  let $_ := xdmp:log(grammar-as-string($grammar))
   let $states := dfa($grammar)
+  let $_ := xdmp:log(states-as-string($states))
   let $chart := chart($states)
   return function($s) {
     let $chart := parse($states,$chart,0,fn:string-to-codepoints($s))
     let $_ := xdmp:log(chart-as-string($chart))
-    return parse-tree($states,$chart)
+    return find-result($states,$chart)
   }
 };
 
@@ -921,11 +1008,10 @@ declare %private function parse($states,$chart,$index,$tokens)
   let $token := fn:head($tokens)
   let $newrows := fn:fold-left(function($newrows,$row) {
     $row(function($state,$sid,$parent,$bases) {
-      $state(function($drs,$nte,$te,$cs,$h) {
+      $state(function($drs,$nte,$te,$fns,$h) {
         let $id := array:get($te,$token)
         return if(fn:empty($id)) then $newrows else
-          let $fn := function() { text { fn:codepoints-to-string($token) } }
-          let $row := row($states,$id,$parent,($bases,$fn))
+          let $row := row($states,$id,$parent,($bases,$token))
           return if(rowset-contains($newrows,$row)) then $newrows else
             epsilon-expand($states,$newrows,$newindex,$row)
       })
@@ -939,40 +1025,69 @@ declare %private function parse($states,$chart,$index,$tokens)
 declare %private function complete($states,$chart,$rows,$index,$row)
 {
   $row(function($state,$sid,$parent,$bases) {
-    $state(function($drs,$nte,$te,$cs,$h) {
-      fn:fold-left(function($rows,$category) {
-        fn:fold-left(function($rows,$prow) {
+    $state(function($drs,$nte,$te,$fns,$h) {
+      fn:fold-left(function($rows,$c) { (: for each complete category :)
+
+        let $c_ := $c()
+        let $category := fn:head($c_)
+        let $fn := fn:tail($c_)
+        let $newbases := if(fn:empty($fn)) then $bases else $fn($bases)
+        return fn:fold-left(function($rows,$prow) { (: for each parent row :)
+
           $prow(function($pstate,$psid,$pparent,$pbases) {
-            $pstate(function($pdrs,$pnte,$pte,$pcs,$ph) {
+            $pstate(function($pdrs,$pnte,$pte,$pfns,$ph) {
               let $id := array:get($pnte,$category)
               return if(fn:empty($id)) then $rows else
-                let $fn := if($category < $p:start-id) then $bases else
-                  let $n := $states(function($states,$statemap,$pending,$names) {
-                    array:get($names,$category)
-                  })
-                  return function() { element { $n } { $bases ! .() } }
-                let $row := row($states,$id,$pparent,($pbases,$fn))
+                let $row := row($states,$id,$pparent,($pbases,$newbases))
                 return if(rowset-contains($rows,$row)) then $rows else
                   let $rows := epsilon-expand($states,$rows,$index,$row)
                   return complete($states,$chart,$rows,$index,$row)
             })
           })
         },$rows,chart-get($chart,$parent))
-      },$rows,$cs)
+      },$rows,$fns)
     })
   })
 };
 
-declare %private function parse-tree($states,$chart)
+declare %private function find-result($states,$chart)
 {
-  for $row in chart-get($chart,array:size($chart) - 1)
-  return $row(function($state,$sid,$parent,$bases) {
-    $state(function($drs,$nte,$te,$cs,$h) {
-      if(fn:not($cs = $p:start-id)) then () else
-        let $n := $states(function($states,$statemap,$pending,$names) {
-          array:get($names,$p:start-id)
+  let $rows := chart-get($chart,array:size($chart) - 1)
+  return if(fn:empty($rows)) then
+    parse-error(chart-get($chart,array:size($chart) - 2))
+  else
+  let $r :=
+    fn:fold-left(function($r,$row) {
+      if(fn:head($r)) then $r else
+      $row(function($state,$sid,$parent,$bases) {
+        $state(function($drs,$nte,$te,$fns,$h) {
+          fn:fold-left(function($r,$c) {
+            let $c_ := $c()
+            let $category := fn:head($c_)
+            let $fn := fn:tail($c_)
+            return if(fn:head($r) or $category ne $p:start-id) then $r
+              else if(fn:empty($fn)) then (fn:true(),$bases)
+              else (fn:true(),$fn($bases))
+          },fn:false(),$fns)
         })
-        return element { $n } { $bases ! .() }
+      })
+    },fn:false(),$rows)
+  return if(fn:not(fn:head($r))) then
+    parse-error($rows)
+  else fn:tail($r)
+};
+
+declare %private function parse-error($rows)
+{
+  let $tokens := fn:distinct-values(fn:fold-left(function($tokens,$row) {
+    $tokens,
+    $row(function($state,$sid,$parent,$bases) {
+      $state(function($drs,$nte,$te,$fns,$h) {
+        array:fold(function($tokens,$k,$v) { $tokens,"'" || codepoint($k) || "'" },(),$te)
+      })
     })
-  })
+  },(),$rows))
+  let $err := if(fn:exists($tokens)) then fn:string-join($tokens,"', '")
+    else "<EOF>"
+  return fn:error(xs:QName("p:ERROR"),"Parse error, expecting: " || $err)
 };

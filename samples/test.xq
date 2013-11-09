@@ -6,19 +6,20 @@ import module namespace p = "http://snelson.org.uk/functions/parser" at "../pars
   p:rule("E",())
 )):)
 let $grammar := p:grammar((
-  p:rule("M",p:choice("V",("LP","M","M","RP"),("LP","L","V","Dot","M","RP"))),
-  p:rule("L",p:term("lambda")),
+  p:rule("LambdaExpr","M"),
+  p:rule("M",p:choice("V","Apply","Define"),(),p:children#1),
+  p:rule("Apply",("LP","M","M","RP")),
+  p:rule("Define",("LP",p:term("lambda"),"V","Dot","M","RP")),
   p:rule("V",p:choice(p:term("x"),p:term("y"),p:term("z"),p:term("f"),p:term("g"))),
-  p:rule("LP",p:term("(")),
-  p:rule("RP",p:term(")")),
-  p:rule("Dot",p:term(".")),
-  p:rule("<ws>",p:choice("S","Comment")),
-  p:rule("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;")),"ws-explicit"),
-  p:rule("Comment",(p:term("/*"),p:zero-or-more(p:term("*")),p:term("*/")),"ws-explicit")
+  p:token("LP",p:term("(")),
+  p:token("RP",p:term(")")),
+  p:token("Dot",p:term(".")),
+  p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;"))),
+  p:ws("Comment",(p:term("/*"),p:zero-or-more(p:term("*")),p:term("*/")))
 ))
 (:let $grammar := p:grammar((
   p:rule("M",(p:term("zz"),p:zero-or-more(p:term("abc")))),
-  p:rule("<ws>",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;")))
+  p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;")))
 )):)
 
 (:let $input := "aaa":)
@@ -30,13 +31,13 @@ abcabcabcabc abc abc abc abc abc abc abc abc abc abc abc abc abc":)
 let $t_grammar := xdmp:elapsed-time()
 let $parser := p:make-parser($grammar)
 let $t_parser := xdmp:elapsed-time()
-let $tree := $parser($input)
+let $result := $parser($input)
 let $t_parse := xdmp:elapsed-time()
 return (
   "Grammar: " || $t_grammar,
   "Parser: " || ($t_parser - $t_grammar),
   "Parse: " || ($t_parse - $t_parser),
   p:grammar-as-string($grammar),
-  $tree
+  $result()
 ),
 xdmp:elapsed-time()
