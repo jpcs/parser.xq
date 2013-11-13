@@ -213,6 +213,19 @@ declare function term($value)
   }
 };
 
+declare function term-($value)
+{
+  function($n,$i,$c,$r,$ws,$f) {
+    let $n_ := $n || "_" || $i
+    let $nt := non-term($n_)
+    return (
+      make-rules($n,$i+1,$c,($nt,$r),$ws,$f),
+      fn:tail(make-rules($n_,1,fn:string-to-codepoints($value) ! category-t(.),(),fn:false(),
+        discard#1))
+    )
+  }
+};
+
 declare function non-term($value)
 {
   function($n,$i,$c,$r,$ws,$f) {
@@ -367,6 +380,11 @@ declare function rule($n,$categories)
   rule($n,$categories,())
 };
 
+declare function rule-($n,$categories)
+{
+  rule-($n,$categories,())
+};
+
 declare function rule($n,$categories,$options)
 {
   let $valid := try { xs:NCName($n) } catch * { () }
@@ -374,6 +392,11 @@ declare function rule($n,$categories,$options)
     fn:error(xs:QName("p:BADNAME"),"Invalid rule name: " || $n)
   else
     rule($n,$categories,$options,tree($n,?))
+};
+
+declare function rule-($n,$categories,$options)
+{
+  rule($n,$categories,$options,children#1)
 };
 
 declare function rule($n,$categories,$options,$f)
@@ -385,6 +408,11 @@ declare function rule($n,$categories,$options,$f)
 declare function token($n,$categories)
 {
   rule($n,$categories,$p:ws-option,fn:string-join#1)
+};
+
+declare function token-($n,$categories)
+{
+  rule($n,$categories,$p:ws-option,discard#1)
 };
 
 declare function ws($n,$categories)

@@ -6,14 +6,13 @@ import module namespace p = "http://snelson.org.uk/functions/parser" at "../pars
   p:rule("E",())
 )):)
 let $grammar := p:grammar((
-  p:rule("LambdaExpr","M"),
-  p:rule("M",p:choice("V","Apply","Define"),(),p:children#1),
+  p:rule-("M",p:choice("V","Apply","Define")),
   p:rule("Apply",("LP","M","M","RP")),
-  p:rule("Define",("LP",p:term("lambda"),"V","Dot","M","RP")),
+  p:rule("Define",("LP",p:term-("lambda"),"V","Dot","M","RP")),
   p:rule("V",p:choice(p:term("x"),p:term("y"),p:term("z"),p:term("f"),p:term("g"))),
-  p:token("LP",p:term("(")),
-  p:token("RP",p:term(")")),
-  p:token("Dot",p:term(".")),
+  p:token-("LP",p:term("(")),
+  p:token-("RP",p:term(")")),
+  p:token-("Dot",p:term(".")),
   p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;"))),
   p:ws("Comment",(p:term("/*"),p:zero-or-more(p:term("*")),p:term("*/")))
 ))
