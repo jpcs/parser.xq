@@ -16,27 +16,32 @@ let $grammar := p:grammar((
   p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;"))),
   p:ws("Comment",(p:term("/*"),p:zero-or-more(p:term("*")),p:term("*/")))
 ))
-(:let $grammar := p:grammar((
-  p:rule("M",(p:term("zz"),p:zero-or-more(p:term("abc")))),
-  p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;")))
-)):)
+(: let $grammar := p:grammar(( :)
+(:   p:rule("M",("Z",p:zero-or-more("A"))), :)
+(:   p:rule("Z",p:term("zz")), :)
+(:   p:rule("A",p:term("abc")), :)
+(:   p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;"))) :)
+(: )) :)
 
 (:let $input := "aaa":)
 let $input := "( lambda f . ( lambda x . ( f/***************/ x ) ) )"
-(:let $input := "zzabc abc    abc  abc
-abc   abc
-abcabcabcabc abc abc abc abc abc abc abc abc abc abc abc abc abc":)
+(: let $input := "zzabc abc    abc  abc :)
+(: abc   abc :)
+(: abcabcabcabc abc abc abc abc abc abc abc abc abc abc abc abc abc" :)
 
 let $t_grammar := xdmp:elapsed-time()
-let $parser := p:make-parser($grammar)
+(: let $parser := p:make-parser($grammar) :)
+let $xq := p:generate-xquery($grammar)
 let $t_parser := xdmp:elapsed-time()
-let $result := $parser($input)
+(: let $result := $parser($input) :)
+let $result := xdmp:eval($xq)
 let $t_parse := xdmp:elapsed-time()
 return (
   "Grammar: " || $t_grammar,
   "Parser: " || ($t_parser - $t_grammar),
   "Parse: " || ($t_parse - $t_parser),
   p:grammar-as-string($grammar),
-  $result()
+  $xq,
+  $result
 ),
 xdmp:elapsed-time()
