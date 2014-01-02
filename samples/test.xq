@@ -9,7 +9,7 @@ let $grammar := p:grammar((
   p:rule-("M",p:choice("V","Apply","Define")),
   p:rule("Apply",("LP","M","M","RP")),
   p:rule("Define",("LP",p:term-("lambda"),"V","Dot","M","RP")),
-  p:rule("V",p:choice(p:term("x"),p:term("y"),p:term("z"),p:term("f"),p:term("g"))),
+  p:rule("V",p:choice(p:char-range("a","z"),p:char-range("A","Z"))),
   p:token-("LP",p:term("(")),
   p:token-("RP",p:term(")")),
   p:token-("Dot",p:term(".")),
@@ -30,18 +30,24 @@ let $input := "( lambda f . ( lambda x . ( f/***************/ x ) ) )"
 (: abcabcabcabc abc abc abc abc abc abc abc abc abc abc abc abc abc" :)
 
 let $t_grammar := xdmp:elapsed-time()
-(: let $parser := p:make-parser($grammar) :)
-let $xq := p:generate-xquery($grammar)
+let $parser := p:make-parser($grammar)
 let $t_parser := xdmp:elapsed-time()
-(: let $result := $parser($input) :)
-let $result := xdmp:eval($xq)
+let $result := $parser($input)
 let $t_parse := xdmp:elapsed-time()
 return (
   "Grammar: " || $t_grammar,
   "Parser: " || ($t_parser - $t_grammar),
   "Parse: " || ($t_parse - $t_parser),
   p:grammar-as-string($grammar),
-  $xq,
-  $result
+  $result()
 ),
+(: let $t_grammar := xdmp:elapsed-time() :)
+(: let $xq := p:generate-xquery($grammar,"http://snelson.org.uk/functions/invisible-xml-parser",true()) :)
+(: let $t_parser := xdmp:elapsed-time() :)
+(: return ( :)
+(:   "Grammar: " || $t_grammar, :)
+(:   "Parser: " || ($t_parser - $t_grammar), :)
+(:   p:grammar-as-string($grammar), :)
+(:   $xq :)
+(: ), :)
 xdmp:elapsed-time()

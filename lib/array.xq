@@ -102,6 +102,15 @@ declare function fold(
     $z, $map)
 };
 
+declare function keys($map as item()) as xs:integer*
+{
+  for $k in hamt:fold(
+    function($result, $pair) { $result,key($pair) },
+    (), $map)
+  order by $k
+  return $k
+};
+
 declare function size($map as item()) as xs:integer
 {
   hamt:fold(
