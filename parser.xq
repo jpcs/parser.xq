@@ -168,6 +168,19 @@ declare %private function codepoint($c)
   case 9 return "\t"
   case 10 return "\n"
   case 13 return "\r"
+  case 34 return '\"'
+  case 92 return "\\"
+  default return fn:codepoints-to-string($c)
+};
+
+declare %private function codepoint-xq($c)
+{
+  switch($c)
+  case 0 return "\0"
+  case 9 return "\t"
+  case 10 return "\n"
+  case 13 return "\r"
+  case 34 return "\&amp;quot;"
   case 92 return "\\"
   default return fn:codepoints-to-string($c)
 };
@@ -452,6 +465,11 @@ declare function rule-($n,$categories)
   rule-($n,$categories,())
 };
 
+declare function rule-attr($n,$categories)
+{
+  rule-attr($n,$categories,())
+};
+
 declare function rule($n,$categories,$options)
 {
   let $ws := fn:not($options = $p:ws-option)
@@ -465,6 +483,14 @@ declare function rule-($n,$categories,$options)
   let $ws := fn:not($options = $p:ws-option)
   return function($df) {
     fn:tail(make-rules($n,1,(),make-non-terms($categories),$ws,$df[4],$df))
+  }
+};
+
+declare function rule-attr($n,$categories,$options)
+{
+  let $ws := fn:not($options = $p:ws-option)
+  return function($df) {
+    fn:tail(make-rules($n,1,(),make-non-terms($categories),$ws,$df[6]($n),$df))
   }
 };
 
@@ -574,9 +600,17 @@ declare %private function category-nullable($grammar,$category,$searched)
 declare %private variable $parse-default-actions := (
   discard#1,
   fn:codepoints-to-string#1,
-  fn:string-join#1,
+  function($ch) {
+    fn:string-join($ch ! (
+      typeswitch(.)
+      case xs:string return .
+      case xs:integer return fn:codepoints-to-string(.)
+      default return .()
+    ))
+  },
   children#1,
-  function($n) { tree($n,?) }
+  function($n) { tree($n,?) },
+  function($n) { attr($n,?) }
 );
 
 declare function tree($n,$ch)
@@ -590,6 +624,20 @@ declare function tree($n,$ch)
         default return .()
       )
     }
+  }
+};
+
+declare function attr($n,$ch)
+{
+  function() {
+    attribute { $n } { fn:string-join(
+      $ch ! (
+        typeswitch(.)
+        case xs:string return .
+        case xs:integer return fn:codepoints-to-string(.)
+        default return .() ! fn:string(.)
+      )
+    )}
   }
 };
 
@@ -613,7 +661,12 @@ declare function discard($ch)
 declare %private variable $generate-default-actions := (
   "()",
   "fn:codepoints-to-string($ch)",
-  "fn:string-join($ch)",
+  "fn:string-join($ch ! (
+     typeswitch(.)
+     case xs:string return .
+     case xs:integer return fn:codepoints-to-string(.)
+     default return .()
+   ))",
   "function() { $ch ! (
      typeswitch(.)
      case xs:string return text { . }
@@ -630,6 +683,18 @@ declare %private variable $generate-default-actions := (
         case xs:integer return text { fn:codepoints-to-string(.) }
         default return .()
       )}
+    }"
+  },
+  function($n) {
+    if(try { fn:empty(xs:NCName($n)) } catch * { fn:true() }) then
+      fn:error(xs:QName("p:BADNAME"),"Invalid rule name: " || $n)
+    else "function() {
+      attribute " || $n || " { fn:string-join($ch ! (
+        typeswitch(.)
+        case xs:string return .
+        case xs:integer return fn:codepoints-to-string(.)
+        default return .() ! fn:string(.)
+      ))}
     }"
   }
 );
@@ -1373,9 +1438,9 @@ declare function generate-xquery($grammar,$namespace,$main-module)
       return $state(function($drs,$nte,$te,$tre,$fns,$h) {
         "x:ref((" ||
         fn:string-join((
-            array:keys($te) ! ('"' || codepoint(.) || '"'),
+            array:keys($te) ! ('"' || codepoint-xq(.) || '"'),
             for $e in $tre return $e(function($s,$e,$sid) {
-              '"[' || codepoint($s) || "-" || codepoint($e) || ']"'
+              '"[' || codepoint-xq($s) || "-" || codepoint-xq($e) || ']"'
             })
           ),",") ||
         "))"
