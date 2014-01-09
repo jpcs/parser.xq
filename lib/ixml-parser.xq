@@ -1,6 +1,6 @@
 xquery version "3.0";
 module namespace x = "http://snelson.org.uk/functions/ixml-parser";
-import module namespace p = 'http://snelson.org.uk/functions/parser-runtime' at '../parser-runtime-ml.xq';
+import module namespace p = 'http://snelson.org.uk/functions/parser-runtime' at '/parser.xq/parser-runtime-ml.xq';
 declare %private function x:ref($s) { function() { $s } };
 declare %private variable $x:nt-names := ("<epsilon>","<ws>","ixml","ixml_1","rule","rule_2","rule_1","definition","definition_1","definition_1_1","alternative","alternative_1","alternative_1_1","term","repetition","one-or-more","one-or-more_3","one-or-more_2","one-or-more_1","zero-or-more","zero-or-more_3","zero-or-more_2","zero-or-more_1","separator","symbol","terminal","explicit-terminal","explicit-terminal_1","implicit-terminal","nonterminal","refinement","refinement_1","attribute","attribute_1","string","string_3","string_2","string_1","name","name_1","S");
 declare %private variable $x:nt-edges := (
@@ -165,12 +165,12 @@ declare %private variable $x:t-edges := (
   function($c) { () },
   function($c) { switch($c) case 9 return (4) case 10 return (4) case 13 return (4) case 32 return (4) case 44 return (54) default return () },
   function($c) { () },
-  function($c) { switch($c) case 34 return (57) default return (),  if(9 le $c and $c le 127) then (52) else () },
+  function($c) { switch($c) case 34 return (57) default return (),  if(35 le $c and $c le 127) then (52) else (), if(9 le $c and $c le 33) then (52) else () },
   function($c) { () },
   function($c) { () },
   function($c) { () },
   function($c) { () },
-  function($c) { if(9 le $c and $c le 127) then (52) else () },
+  function($c) { if(9 le $c and $c le 33) then (52) else (), if(35 le $c and $c le 127) then (52) else () },
   function($c) { () },
   function($c) { () },
   function($c) { if(97 le $c and $c le 122) then (9) else (), if(65 le $c and $c le 90) then (9) else () },
@@ -275,12 +275,12 @@ declare %private variable $x:t-values := (
   x:ref(()),
   x:ref(("\t","\n","\r"," ",",")),
   x:ref(()),
-  x:ref(("\&quot;","[\t-]")),
+  x:ref(("\&quot;","[#-]","[\t-!]")),
   x:ref(()),
   x:ref(()),
   x:ref(()),
   x:ref(()),
-  x:ref(("[\t-]")),
+  x:ref(("[\t-!]","[#-]")),
   x:ref(()),
   x:ref(()),
   x:ref(("[a-z]","[A-Z]")),

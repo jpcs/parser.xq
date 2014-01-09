@@ -55,7 +55,7 @@ let $grammar := gr:grammar((
 (: openquote: -S, """". :)
 (: closequote: """", -S. :)
 (: character: ... :)
-  gr:token("string",(gr:term-('"'),gr:zero-or-more(gr:codepoint-range(9,127)),gr:term-('"'))),
+  gr:token("string",(gr:term-('"'),gr:zero-or-more(gr:choice(gr:codepoint-range(9,33),gr:codepoint-range(35,127))),gr:term-('"'))),
 (: name: (-letter)+. :)
 (: letter: +"a"; +"b"; ... :)
   gr:rule-attr("name",gr:one-or-more(gr:choice(gr:char-range("a","z"),gr:char-range("A","Z")))),

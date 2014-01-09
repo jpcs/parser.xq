@@ -106,24 +106,40 @@ declare %private function rowset() as item()
 
 declare %private function rowset-put(
   $set as item(),
-  $row
-) as empty-sequence()
-{
-  let $k := row-hash($row)
-  where fn:not(map:contains($set,$k))
-  return (
-    map:put($set,$k,fn:true()),
-    map:put($set,"rows",(map:get($set,"rows"),$row))
-  )
-};
-
-declare %private function rowset-contains(
-  $set as item(),
+  $states,
   $sid,
   $parent
-) as item()
+)
 {
-  map:contains($set,$sid || "/" || $parent)
+  let $k := $sid || "/" || $parent
+  where fn:not(map:contains($set,$k))
+  return
+    let $row := row($states,$sid,$parent,())
+    return (
+      map:put($set,$k,fn:true()),
+      map:put($set,"rows",(map:get($set,"rows"),$row)),
+      $row
+    )
+};
+
+declare %private function rowset-put-from(
+  $set as item(),
+  $states,
+  $sid,
+  $row,
+  $newbases
+)
+{
+  let $parent := $row("parent")
+  let $k := $sid || "/" || $parent
+  where fn:not(map:contains($set,$k))
+  return
+    let $row := row($states,$sid,$parent,($row("bases"),$newbases))
+    return (
+      map:put($set,$k,fn:true()),
+      map:put($set,"rows",(map:get($set,"rows"),$row)),
+      $row
+    )
 };
 
 declare %private function rowset-rows(
@@ -147,7 +163,8 @@ declare %private function chart($states)
   let $rows := rowset()
   let $chart := json:array()
   return (
-    epsilon-expand($states,$rows,1,row($states,0,1,())),
+    for $row in rowset-put($rows,$states,0,1)
+    return epsilon-expand($states,$rows,1,$row),
     chart-push($chart,$rows),
     $chart
   )
@@ -187,10 +204,9 @@ declare function chart-as-string($chart)
 
 declare %private function epsilon-expand($states,$rows,$index,$row)
 {
-  rowset-put($rows,$row),
   for $id in $row("nte")($p:epsilon-id)
-  where fn:not(rowset-contains($rows,$id,$index))
-  return epsilon-expand($states,$rows,$index,row($states,$id,$index,()))
+  for $row in rowset-put($rows,$states,$id,$index)
+  return epsilon-expand($states,$rows,$index,$row)
 };
 
 declare function make-parser($nt-edges,$t-edges,$t-values,$complete,$nt-names)
@@ -233,9 +249,8 @@ declare %private function parse($states,$tokens)
 declare %private function scan($states,$rows,$index,$token,$row)
 {
   for $id in $row("te")($token)
-  where fn:not(rowset-contains($rows,$id,$row("parent")))
-  return epsilon-expand($states,$rows,$index,
-    row($states,$id,$row("parent"),($row("bases"),$token)))
+  for $row in rowset-put-from($rows,$states,$id,$row,$token)
+  return epsilon-expand($states,$rows,$index,$row)
 };
 
 declare %private function complete($states,$chart,$rows,$index,$row)
@@ -247,13 +262,11 @@ declare %private function complete($states,$chart,$rows,$index,$row)
 
   for $prow in chart-get($chart,$row("parent"))
   for $id in $prow("nte")($category)
-  where fn:not(rowset-contains($rows,$id,$prow("parent")))
-  return
-    let $row := row($states,$id,$prow("parent"),($prow("bases"),$newbases))
-    return (
-      epsilon-expand($states,$rows,$index,$row),
-      complete($states,$chart,$rows,$index,$row)
-    )
+  for $row in rowset-put-from($rows,$states,$id,$prow,$newbases)
+  return (
+    epsilon-expand($states,$rows,$index,$row),
+    complete($states,$chart,$rows,$index,$row)
+  )
 };
 
 declare %private function find-result($tokens,$chart)
