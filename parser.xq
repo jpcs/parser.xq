@@ -1,4 +1,4 @@
-xquery version "1.0-ml";
+xquery version "3.0";
 
 (:
  : Copyright (c) 2013 John Snelson
@@ -18,9 +18,11 @@ xquery version "1.0-ml";
 
 module namespace p = "http://snelson.org.uk/functions/parser";
 declare default function namespace "http://snelson.org.uk/functions/parser";
+declare namespace err = "http://www.w3.org/2005/xqt-errors";
 import module namespace map = "http://snelson.org.uk/functions/hashmap" at "lib/hashmap.xq";
 import module namespace array = "http://snelson.org.uk/functions/array" at "lib/array.xq";
 import module namespace hamt = "http://snelson.org.uk/functions/hamt" at "lib/hamt.xq";
+import module namespace pr = "http://snelson.org.uk/functions/parser-runtime" at "parser-runtime.xq";
 
 (:
  : Grammar = map(string,Rule)
@@ -44,6 +46,100 @@ declare variable $ws-option := "ws-explicit";
 
 declare %private variable $isMarkLogic as xs:boolean external :=
   fn:exists(fn:function-lookup(fn:QName("http://marklogic.com/xdmp","functions"),0));
+
+declare %private variable $log := (
+  fn:function-lookup(fn:QName("http://marklogic.com/xdmp","log"),1),
+  function($s) { () }
+)[1];
+
+declare %private variable $eval := (
+  fn:function-lookup(fn:QName("http://marklogic.com/xdmp","eval"),1),
+  function($s) { fn:error(xs:QName("p:EVAL"),"Eval function unknown for this XQuery processor") }
+)[1];
+
+(: -------------------------------------------------------------------------- :)
+(: Built-In Actions :)
+
+declare %private variable $parse-default-actions := (
+  discard#1,
+  (: fn:codepoints-to-string#1, :)
+  children#1,
+  children#1,
+  children#1,
+  function($n) { tree($n,?) },
+  function($n) { attr($n,?) }
+);
+
+declare function tree($n,$ch)
+{
+  function() {
+    element { $n } {
+      $ch ! (
+        typeswitch(.)
+        case xs:string return text { . }
+        case xs:integer return text { fn:codepoints-to-string(.) }
+        default return .()
+      )
+    }
+  }
+};
+
+declare function attr($n,$ch)
+{
+  function() {
+    attribute { $n } { fn:string-join(
+      $ch ! (
+        typeswitch(.)
+        case xs:string return .
+        case xs:integer return fn:codepoints-to-string(.)
+        default return .() ! fn:string(.)
+      )
+    )}
+  }
+};
+
+declare function children($ch)
+{
+  $ch
+};
+
+declare function discard($ch)
+{
+  ()
+};
+
+declare %private variable $generate-default-actions := (
+  "()",
+  "$ch",
+  "$ch",
+  "$ch",
+  function($n) {
+    if(try { fn:empty(xs:NCName($n)) } catch * { fn:true() }) then
+      fn:error(xs:QName("p:BADNAME"),"Invalid rule name: " || $n)
+    else "function() {
+      element " || $n || " { $ch ! (
+        typeswitch(.)
+        case xs:string return text { . }
+        case xs:integer return text { fn:codepoints-to-string(.) }
+        default return .()
+      )}
+    }"
+  },
+  function($n) {
+    if(try { fn:empty(xs:NCName($n)) } catch * { fn:true() }) then
+      fn:error(xs:QName("p:BADNAME"),"Invalid rule name: " || $n)
+    else "function() {
+      attribute " || $n || " { fn:string-join($ch ! (
+        typeswitch(.)
+        case xs:string return .
+        case xs:integer return fn:codepoints-to-string(.)
+        default return .() ! fn:string(.)
+      ))}
+    }"
+  }
+);
+
+(: -------------------------------------------------------------------------- :)
 
 declare %private function category-nt($n)
 {
@@ -595,88 +691,6 @@ declare %private function category-nullable($grammar,$category,$searched)
 };
 
 (: -------------------------------------------------------------------------- :)
-(: Built-In Actions :)
-
-declare %private variable $parse-default-actions := (
-  discard#1,
-  (: fn:codepoints-to-string#1, :)
-  children#1,
-  children#1,
-  children#1,
-  function($n) { tree($n,?) },
-  function($n) { attr($n,?) }
-);
-
-declare function tree($n,$ch)
-{
-  function() {
-    element { $n } {
-      $ch ! (
-        typeswitch(.)
-        case xs:string return text { . }
-        case xs:integer return text { fn:codepoints-to-string(.) }
-        default return .()
-      )
-    }
-  }
-};
-
-declare function attr($n,$ch)
-{
-  function() {
-    attribute { $n } { fn:string-join(
-      $ch ! (
-        typeswitch(.)
-        case xs:string return .
-        case xs:integer return fn:codepoints-to-string(.)
-        default return .() ! fn:string(.)
-      )
-    )}
-  }
-};
-
-declare function children($ch)
-{
-  $ch
-};
-
-declare function discard($ch)
-{
-  ()
-};
-
-declare %private variable $generate-default-actions := (
-  "()",
-  "$ch",
-  "$ch",
-  "$ch",
-  function($n) {
-    if(try { fn:empty(xs:NCName($n)) } catch * { fn:true() }) then
-      fn:error(xs:QName("p:BADNAME"),"Invalid rule name: " || $n)
-    else "function() {
-      element " || $n || " { $ch ! (
-        typeswitch(.)
-        case xs:string return text { . }
-        case xs:integer return text { fn:codepoints-to-string(.) }
-        default return .()
-      )}
-    }"
-  },
-  function($n) {
-    if(try { fn:empty(xs:NCName($n)) } catch * { fn:true() }) then
-      fn:error(xs:QName("p:BADNAME"),"Invalid rule name: " || $n)
-    else "function() {
-      attribute " || $n || " { fn:string-join($ch ! (
-        typeswitch(.)
-        case xs:string return .
-        case xs:integer return fn:codepoints-to-string(.)
-        default return .() ! fn:string(.)
-      ))}
-    }"
-  }
-);
-
-(: -------------------------------------------------------------------------- :)
 
 (:
  : DottedRuleSet = hamt(DottedRule)
@@ -1207,14 +1221,25 @@ declare %private function epsilon-expand($states,$rows,$index,$row)
 
 declare function make-parser($grammar)
 {
-  let $_ := xdmp:log(grammar-as-string($grammar))
+  make-parser-function($grammar,())
+};
+
+declare function make-parser($grammar,$options)
+{
+  if($options = "eval") then $p:eval(generate-xquery($grammar,("main-module",$options)))
+  else make-parser-function($grammar,$options)
+};
+
+declare %private function make-parser-function($grammar,$options)
+{
+  let $_ := $p:log(grammar-as-string($grammar))
   let $grammar := $grammar($p:parse-default-actions)
   let $states := dfa($grammar)
-  let $_ := xdmp:log(states-as-string($states))
+  let $_ := $p:log(states-as-string($states))
   let $chart := chart($states)
   return function($s) {
     let $chart := parse($states,$chart,0,fn:string-to-codepoints($s))
-    let $_ := xdmp:log(chart-as-string($chart))
+    let $_ := $p:log(chart-as-string($chart))
     return find-result($states,$chart)
   }
 };
@@ -1324,17 +1349,24 @@ declare %private function parse-error($rows)
 
 (: -------------------------------------------------------------------------- :)
 
-declare function generate-xquery($grammar,$namespace)
+declare function generate-xquery($grammar)
 {
-  generate-xquery($grammar,$namespace,fn:false())
+  generate-xquery($grammar,())
 };
 
-declare function generate-xquery($grammar,$namespace,$main-module)
+declare function generate-xquery($grammar,$options)
 {
-  let $_ := xdmp:log(grammar-as-string($grammar))
+  let $namespace := $options[fn:starts-with(.,"namespace=")][1] !
+    fn:substring-after(.,"namespace=")
+  let $namespace := if(fn:exists($namespace) and $namespace ne "") then $namespace
+    else "http://snelson.org.uk/functions/parser/generated"
+  let $main-module := $options = "main-module"
+  let $_ := $p:log(grammar-as-string($grammar))
   let $grammar := $grammar($p:generate-default-actions)
   let $states := dfa($grammar)
-  let $_ := xdmp:log(states-as-string($states))
+  let $_ := $p:log(states-as-string($states))
+  let $moduleURI := fn:replace(try { fn:error() } catch * { $err:module },"^(.*/)[^/]*$","$1") ||
+    (if($p:isMarkLogic) then "parser-runtime-ml.xq" else "parser-runtime.xq")
   return fn:string-join(
 
   $states(function($states,$statemap,$pending,$names) {
@@ -1344,14 +1376,10 @@ declare function generate-xquery($grammar,$namespace,$main-module)
     ) else (
       'module namespace x = "' || $namespace || '";'
     ),
-    if($p:isMarkLogic) then (
-      "import module namespace p = 'http://snelson.org.uk/functions/parser-runtime' at 'parser-runtime-ml.xq';"
-    ) else (
-      "import module namespace p = 'http://snelson.org.uk/functions/parser-runtime' at 'parser-runtime.xq';"
-    ),
+    "import module namespace p = 'http://snelson.org.uk/functions/parser-runtime' at '" || $moduleURI || "';",
     "declare %private function x:ref($s) { function() { $s } };",
     "declare %private variable $x:nt-names := (" ||
-    string-join(
+    fn:string-join(
       for $id in (0 to (array:size($names)-1))
       let $name := array:get($names,$id)
       return """" || $name || """"
@@ -1446,12 +1474,11 @@ declare function generate-xquery($grammar,$namespace,$main-module)
       })
     ,",&#10;  ") ||
     ");",
-    "declare %private variable $x:parser :=",
-    "  p:make-parser($x:nt-edges,$x:t-edges,$x:t-values,$x:complete,$x:nt-names);",
     if($main-module) then (
-      "declare variable $s as xs:string external;",
-      "$x:parser($s)"
+      "p:make-parser($x:nt-edges,$x:t-edges,$x:t-values,$x:complete,$x:nt-names)"
     ) else (
+      "declare %private variable $x:parser :=",
+      "  p:make-parser($x:nt-edges,$x:t-edges,$x:t-values,$x:complete,$x:nt-names);",
       "declare function x:parse($s) { $x:parser($s) };"
     )
   }),

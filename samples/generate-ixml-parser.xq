@@ -63,4 +63,4 @@ let $grammar := p:grammar((
   p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;")))
 ))
 return
-  p:generate-xquery($grammar,"http://snelson.org.uk/functions/ixml-parser")
+  p:generate-xquery($grammar,"namespace=http://snelson.org.uk/functions/ixml-parser")
