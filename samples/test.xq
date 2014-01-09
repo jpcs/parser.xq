@@ -7,10 +7,11 @@ import module namespace p = "http://snelson.org.uk/functions/parser" at "../pars
   gr:rule("E",())
 )):)
 let $grammar := gr:grammar((
-  gr:rule-("M",gr:choice("V","Apply","Define")),
+  gr:rule-("M",gr:choice("V","Apply","Define","String")),
   gr:rule("Apply",("LP","M","M","RP")),
   gr:rule("Define",("LP",gr:term-("lambda"),"V","Dot","M","RP")),
   gr:rule("V",gr:choice(gr:char-range("a","z"),gr:char-range("A","Z"))),
+  gr:rule("String",(gr:term-('"'),gr:zero-or-more(gr:choice(gr:codepoint-range(9,33),gr:codepoint-range(35,127))),gr:term-('"')),"ws-explicit"),
   gr:token-("LP",gr:term("(")),
   gr:token-("RP",gr:term(")")),
   gr:token-("Dot",gr:term(".")),
@@ -25,13 +26,18 @@ let $grammar := gr:grammar((
 (: )) :)
 
 (:let $input := "aaa":)
-let $input := "( lambda f . ( lambda x . ( f/***************/ x ) ) )"
+let $input := '
+( lambda f .
+  ( lambda x .
+    ( f/***************/ (x "string contents") )
+  )
+)'
 (: let $input := "zzabc abc    abc  abc :)
 (: abc   abc :)
 (: abcabcabcabc abc abc abc abc abc abc abc abc abc abc abc abc abc" :)
 
 let $t_grammar := xdmp:elapsed-time()
-let $parser := p:make-parser($grammar)
+let $parser := p:make-parser($grammar,"eval")
 let $t_parser := xdmp:elapsed-time()
 let $result := $parser($input)
 let $t_parse := xdmp:elapsed-time()

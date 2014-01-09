@@ -167,8 +167,9 @@ declare function make-parser($nt-edges,$t-edges,$t-values,$complete,$nt-names)
   let $states := states($nt-edges,$t-edges,$t-values,$complete,$nt-names)
   let $chart := chart($states)
   return function($s) {
-    let $chart := parse($states,$chart,0,fn:string-to-codepoints($s))
-    return find-result($chart)
+    let $tokens := fn:string-to-codepoints($s)
+    let $chart := parse($states,$chart,0,$tokens)
+    return find-result($tokens,$chart)
   }
 };
 
@@ -216,11 +217,12 @@ declare %private function complete($states,$chart,$rows,$index,$row)
   })
 };
 
-declare %private function find-result($chart)
+declare %private function find-result($tokens,$chart)
 {
-  let $rows := chart-get($chart,array:size($chart) - 1)
+  let $chart-size := array:size($chart)
+  let $rows := chart-get($chart,$chart-size - 1)
   return if(fn:empty($rows)) then
-    parse-error(chart-get($chart,array:size($chart) - 2))
+    parse-error($tokens,$chart-size - 1,chart-get($chart,$chart-size - 2))
   else
   let $r :=
     fn:fold-left(function($r,$row) {
@@ -236,17 +238,23 @@ declare %private function find-result($chart)
       })
     },fn:false(),$rows)
   return if(fn:not(fn:head($r))) then
-    parse-error($rows)
+    parse-error($tokens,$chart-size,$rows)
   else fn:tail($r)
 };
 
-declare %private function parse-error($rows)
+declare %private function parse-error($tokens,$i,$rows)
 {
-  let $tokens := fn:distinct-values(fn:fold-left(function($tokens,$row) {
-    $tokens,
+  let $etokens := fn:distinct-values(fn:fold-left(function($etokens,$row) {
+    $etokens,
     $row(function($nte,$te,$tv,$c,$sid,$parent,$bases) { $tv })
   },(),$rows))
-  let $err := if(fn:exists($tokens)) then "'" || fn:string-join($tokens,"', '") || "'"
+  let $expected := if(fn:exists($etokens)) then "'" || fn:string-join($etokens,"', '") || "'"
     else "<EOF>"
-  return fn:error(xs:QName("p:ERROR"),"Parse error, expecting: " || $err)
+  let $found := fn:subsequence($tokens,$i,1)
+  let $found := if(fn:empty($found)) then "<EOF>" else codepoint($found)
+  let $line-breaks := fn:index-of($tokens,10)
+  let $line := fn:count($line-breaks[. lt $i]) + 1
+  let $column := $i - ($line-breaks[. lt $i][fn:last()],0)[1] - 1
+  return fn:error(xs:QName("p:ERROR"),"Parse error, expecting: " || $expected ||
+    ", found: '" || $found || "', at: " || $line || ":" || $column)
 };
