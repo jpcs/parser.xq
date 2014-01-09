@@ -361,22 +361,12 @@ function() {
   x:ref(()),
   x:ref((
     x:ref((39,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref(()),
   x:ref((
     x:ref((8,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })),
     x:ref((10,function($ch) {
 function() {
@@ -389,21 +379,11 @@ function() {
     }
     })),
     x:ref((7,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((24,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((38,function($ch) {
@@ -418,22 +398,12 @@ function() {
     })))),
   x:ref((
     x:ref((7,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref(()),
   x:ref((
     x:ref((8,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((10,function($ch) {
@@ -448,12 +418,7 @@ function() {
     })))),
   x:ref((
     x:ref((8,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((13,function($ch) {
@@ -488,12 +453,7 @@ function() {
     })))),
   x:ref((
     x:ref((14,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((18,function($ch) {
@@ -527,12 +487,7 @@ function() {
   x:ref(()),
   x:ref((
     x:ref((8,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })),
     x:ref((10,function($ch) {
 function() {
@@ -545,22 +500,12 @@ function() {
     }
     })),
     x:ref((7,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref(()),
   x:ref((
     x:ref((8,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })),
     x:ref((10,function($ch) {
 function() {
@@ -573,31 +518,16 @@ function() {
     }
     })),
     x:ref((7,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((11,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref(()),
   x:ref((
     x:ref((8,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })),
     x:ref((10,function($ch) {
 function() {
@@ -610,21 +540,11 @@ function() {
     }
     })),
     x:ref((7,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((8,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })),
     x:ref((10,function($ch) {
 function() {
@@ -661,12 +581,7 @@ function() {
   x:ref(()),
   x:ref((
     x:ref((25,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((10,function($ch) {
@@ -683,21 +598,11 @@ function() {
   x:ref(()),
   x:ref((
     x:ref((36,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((36,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref((
     x:ref((26,function($ch) {
@@ -716,12 +621,7 @@ function() {
     })))),
   x:ref((
     x:ref((34,function($ch) {
-fn:string-join($ch ! (
-        typeswitch(.)
-        case xs:string return .
-        case xs:integer return fn:codepoints-to-string(.)
-        default return .()
-      ))
+$ch
     })))),
   x:ref(()),
   x:ref((
@@ -741,12 +641,7 @@ function() {
     })))),
   x:ref((
     x:ref((8,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })),
     x:ref((10,function($ch) {
 function() {
@@ -831,12 +726,7 @@ function() {
     })))),
   x:ref((
     x:ref((3,function($ch) {
-function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}
+$ch
     })))),
   x:ref(()),
   x:ref(()),

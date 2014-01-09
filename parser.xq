@@ -599,15 +599,9 @@ declare %private function category-nullable($grammar,$category,$searched)
 
 declare %private variable $parse-default-actions := (
   discard#1,
-  fn:codepoints-to-string#1,
-  function($ch) {
-    fn:string-join($ch ! (
-      typeswitch(.)
-      case xs:string return .
-      case xs:integer return fn:codepoints-to-string(.)
-      default return .()
-    ))
-  },
+  (: fn:codepoints-to-string#1, :)
+  children#1,
+  children#1,
   children#1,
   function($n) { tree($n,?) },
   function($n) { attr($n,?) }
@@ -643,14 +637,7 @@ declare function attr($n,$ch)
 
 declare function children($ch)
 {
-  function() {
-    $ch ! (
-      typeswitch(.)
-      case xs:string return text { . }
-      case xs:integer return text { fn:codepoints-to-string(.) }
-      default return .()
-    )
-  }
+  $ch
 };
 
 declare function discard($ch)
@@ -660,19 +647,9 @@ declare function discard($ch)
 
 declare %private variable $generate-default-actions := (
   "()",
-  "fn:codepoints-to-string($ch)",
-  "fn:string-join($ch ! (
-     typeswitch(.)
-     case xs:string return .
-     case xs:integer return fn:codepoints-to-string(.)
-     default return .()
-   ))",
-  "function() { $ch ! (
-     typeswitch(.)
-     case xs:string return text { . }
-     case xs:integer return text { fn:codepoints-to-string(.) }
-     default return .()
-   )}",
+  "$ch",
+  "$ch",
+  "$ch",
   function($n) {
     if(try { fn:empty(xs:NCName($n)) } catch * { fn:true() }) then
       fn:error(xs:QName("p:BADNAME"),"Invalid rule name: " || $n)
