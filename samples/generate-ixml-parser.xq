@@ -1,66 +1,67 @@
 xquery version "3.0";
+import module namespace gr = "http://snelson.org.uk/functions/grammar" at "../grammar.xq";
 import module namespace p = "http://snelson.org.uk/functions/parser" at "../parser.xq";
 
-let $grammar := p:grammar((
+let $grammar := gr:grammar((
 (: ixml: (rule)+. :)
-  p:rule("ixml",p:one-or-more("rule")),
+  gr:rule("ixml",gr:one-or-more("rule")),
 (: rule: @name, -colon, -definition, -stop. :)
 (: colon: -S, ":", -S. :)
-(: stop: -S, ".", -S. :)
-  p:rule("rule",("name",p:term-(":"),"definition",p:term-("."))),
+(: stogr: -S, ".", -S. :)
+  gr:rule("rule",("name",gr:term-(":"),"definition",gr:term-("."))),
 (: definition: (alternative)*-semicolon. :)
 (: semicolon: -S, ";", -S. :)
-  p:rule-("definition",p:zero-or-more("alternative",p:term-(";"))),
+  gr:rule-("definition",gr:zero-or-more("alternative",gr:term-(";"))),
 (: alternative: (-term)*-comma. :)
 (: comma:  -S, ",", -S. :)
-  p:rule("alternative",p:zero-or-more("term",p:term-(","))),
+  gr:rule("alternative",gr:zero-or-more("term",gr:term-(","))),
 (: term: -symbol; -repetition. :)
-  p:rule("term",p:choice("symbol","repetition")),
+  gr:rule("term",gr:choice("symbol","repetition")),
 (: repetition: one-or-more; zero-or-more. :)
-  p:rule-("repetition",p:choice("one-or-more","zero-or-more")),
+  gr:rule-("repetition",gr:choice("one-or-more","zero-or-more")),
 (: one-or-more: -open, -definition, -close, -plus, separator. :)
 (: open:  -S, "(", -S. :)
 (: close:  -S, ")", -S. :)
 (: plus:  -S, "+", -S. :)
-  p:rule("one-or-more",(p:term-("("),"definition",p:term-(")"),p:term-("+"),"separator")),
+  gr:rule("one-or-more",(gr:term-("("),"definition",gr:term-(")"),gr:term-("+"),"separator")),
 (: zero-or-more: -open, -definition, -close, -star, separator. :)
 (: open:  -S, "(", -S. :)
 (: close:  -S, ")", -S. :)
 (: star:  -S, "*", -S. :)
-  p:rule("zero-or-more",(p:term-("("),"definition",p:term-(")"),p:term-("*"),"separator")),
+  gr:rule("zero-or-more",(gr:term-("("),"definition",gr:term-(")"),gr:term-("*"),"separator")),
 (: separator: -symbol; -empty. :)
 (: empty: . :)
-  p:rule("separator",p:optional("symbol")),
+  gr:rule("separator",gr:optional("symbol")),
 
 (: symbol: -terminal; nonterminal; refinement ; attribute. :)
-  p:rule-("symbol",p:choice("terminal","nonterminal","refinement","attribute")),
+  gr:rule-("symbol",gr:choice("terminal","nonterminal","refinement","attribute")),
 (: terminal: explicit-terminal; implicit-terminal. :)
-  p:rule-("terminal",p:choice("explicit-terminal","implicit-terminal")),
+  gr:rule-("terminal",gr:choice("explicit-terminal","implicit-terminal")),
 (: explicit-terminal: -plus, @string. :)
 (: plus:  -S, "+", -S. :)
-  p:rule("explicit-terminal",(p:term-("+"),"string")),
+  gr:rule("explicit-terminal",(gr:term-("+"),"string")),
 (: implicit-terminal: @string. :)
-  p:rule("implicit-terminal","string"),
+  gr:rule("implicit-terminal","string"),
 (: nonterminal: @name. :)
-  p:rule("nonterminal","name"),
+  gr:rule("nonterminal","name"),
 (: refinement: -minus, @name. :)
 (: minus:  -S, "-", -S. :)
-  p:rule("refinement",(p:term-("-"),"name")),
+  gr:rule("refinement",(gr:term-("-"),"name")),
 (: attribute: -at, @name. :)
 (: at:  -S, "@", -S. :)
-  p:rule("attribute",(p:term-("@"),"name")),
+  gr:rule("attribute",(gr:term-("@"),"name")),
 
 (: string: -openquote, (-character)*, -closequote. :)
 (: openquote: -S, """". :)
 (: closequote: """", -S. :)
 (: character: ... :)
-  p:token("string",(p:term-('"'),p:zero-or-more(p:codepoint-range(9,127)),p:term-('"'))),
+  gr:token("string",(gr:term-('"'),gr:zero-or-more(gr:codepoint-range(9,127)),gr:term-('"'))),
 (: name: (-letter)+. :)
 (: letter: +"a"; +"b"; ... :)
-  p:rule-attr("name",p:one-or-more(p:choice(p:char-range("a","z"),p:char-range("A","Z")))),
+  gr:rule-attr("name",gr:one-or-more(gr:choice(gr:char-range("a","z"),gr:char-range("A","Z")))),
 
 (: S: " "*. :)
-  p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;")))
+  gr:ws("S",gr:choice(gr:term(" "),gr:term("&#9;"),gr:term("&#10;"),gr:term("&#13;")))
 ))
 return
   p:generate-xquery($grammar,"namespace=http://snelson.org.uk/functions/ixml-parser")

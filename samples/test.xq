@@ -1,26 +1,27 @@
+import module namespace gr = "http://snelson.org.uk/functions/grammar" at "../grammar.xq";
 import module namespace p = "http://snelson.org.uk/functions/parser" at "../parser.xq";
 
-(:let $grammar := p:grammar((
-  p:rule("M",("A","A","A","A")),
-  p:rule("A",p:choice(p:term("a"),"E")),
-  p:rule("E",())
+(:let $grammar := gr:grammar((
+  gr:rule("M",("A","A","A","A")),
+  gr:rule("A",gr:choice(gr:term("a"),"E")),
+  gr:rule("E",())
 )):)
-let $grammar := p:grammar((
-  p:rule-("M",p:choice("V","Apply","Define")),
-  p:rule("Apply",("LP","M","M","RP")),
-  p:rule("Define",("LP",p:term-("lambda"),"V","Dot","M","RP")),
-  p:rule("V",p:choice(p:char-range("a","z"),p:char-range("A","Z"))),
-  p:token-("LP",p:term("(")),
-  p:token-("RP",p:term(")")),
-  p:token-("Dot",p:term(".")),
-  p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;"))),
-  p:ws("Comment",(p:term("/*"),p:zero-or-more(p:term("*")),p:term("*/")))
+let $grammar := gr:grammar((
+  gr:rule-("M",gr:choice("V","Apply","Define")),
+  gr:rule("Apply",("LP","M","M","RP")),
+  gr:rule("Define",("LP",gr:term-("lambda"),"V","Dot","M","RP")),
+  gr:rule("V",gr:choice(gr:char-range("a","z"),gr:char-range("A","Z"))),
+  gr:token-("LP",gr:term("(")),
+  gr:token-("RP",gr:term(")")),
+  gr:token-("Dot",gr:term(".")),
+  gr:ws("S",gr:choice(gr:term(" "),gr:term("&#9;"),gr:term("&#10;"),gr:term("&#13;"))),
+  gr:ws("Comment",(gr:term("/*"),gr:zero-or-more(gr:term("*")),gr:term("*/")))
 ))
-(: let $grammar := p:grammar(( :)
-(:   p:rule("M",("Z",p:zero-or-more("A"))), :)
-(:   p:rule("Z",p:term("zz")), :)
-(:   p:rule("A",p:term("abc")), :)
-(:   p:ws("S",p:choice(p:term(" "),p:term("&#9;"),p:term("&#10;"),p:term("&#13;"))) :)
+(: let $grammar := gr:grammar(( :)
+(:   gr:rule("M",("Z",gr:zero-or-more("A"))), :)
+(:   gr:rule("Z",gr:term("zz")), :)
+(:   gr:rule("A",gr:term("abc")), :)
+(:   gr:ws("S",gr:choice(gr:term(" "),gr:term("&#9;"),gr:term("&#10;"),gr:term("&#13;"))) :)
 (: )) :)
 
 (:let $input := "aaa":)
@@ -38,7 +39,7 @@ return (
   "Grammar: " || $t_grammar,
   "Parser: " || ($t_parser - $t_grammar),
   "Parse: " || ($t_parse - $t_parser),
-  p:grammar-as-string($grammar),
+  gr:grammar-as-string($grammar),
   $result()
 ),
 (: let $t_grammar := xdmp:elapsed-time() :)

@@ -1,4 +1,4 @@
-xquery version "1.0-ml";
+xquery version "3.0";
 
 (:
  : Copyright (c) 2013 John Snelson
@@ -168,7 +168,6 @@ declare function make-parser($nt-edges,$t-edges,$t-values,$complete,$nt-names)
   let $chart := chart($states)
   return function($s) {
     let $chart := parse($states,$chart,0,fn:string-to-codepoints($s))
-    (: let $_ := xdmp:log(chart-as-string($chart)) :)
     return find-result($chart)
   }
 };
@@ -182,11 +181,11 @@ declare %private function parse($states,$chart,$index,$tokens)
   let $token := fn:head($tokens)
   let $newrows := fn:fold-left(function($newrows,$row) {
     $row(function($nte,$te,$tv,$c,$sid,$parent,$bases) {
-      let $id := $te($token)
-      return if(fn:empty($id)) then $newrows else
+      fn:fold-left(function($newrows,$id) {
         let $row := row($states,$id,$parent,($bases,$token))
         return if(rowset-contains($newrows,$row)) then $newrows else
           epsilon-expand($states,$newrows,$newindex,$row)
+      },$newrows,$te($token))
     })
   },rowset(),$rows)
   let $newrows := rowset-fold(complete($states,$chart,?,$newindex,?),$newrows,$newrows)
