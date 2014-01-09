@@ -228,7 +228,7 @@ declare function dotted-ruleset-hash($set as item()) as xs:integer
 
 declare %private function states-as-string($s)
 {
-  $s(function($states,$statemap,$pending,$names) {
+  $s(function($states,$statemap,$pending) {
     fn:string-join((
       for $id in (0 to (array:size($states)-1))
       let $state := array:get($states,$id)
@@ -272,22 +272,22 @@ declare %private function states($grammar)
   let $states := array:create()
   let $statemap := array:create()
   let $pending := hamt:create()
-  let $names := map:fold(function($names,$category,$rule) {
-    array:put($names,fn:head($rule),$category)
-  },array:create(),$grammar)
-  return function($f) { $f($states,$statemap,$pending,$names) }
+  (: let $names := map:fold(function($names,$category,$rule) { :)
+  (:   array:put($names,fn:head($rule),$category) :)
+  (: },array:create(),$grammar) :)
+  return function($f) { $f($states,$statemap,$pending) }
 };
 
 declare %private function states-get($s,$id)
 {
-  $s(function($states,$statemap,$pending,$names) {
+  $s(function($states,$statemap,$pending) {
     array:get($states,$id)
   })
 };
 
 declare %private function states-add-state($s,$grammar,$state,$pe)
 {
-  $s(function($states,$statemap,$pending,$names) {
+  $s(function($states,$statemap,$pending) {
     $state(function($drs,$nte,$te,$tre,$fns,$h) {
       let $id := array:get($statemap,$h)
       return if(fn:exists($id)) then
@@ -295,7 +295,7 @@ declare %private function states-add-state($s,$grammar,$state,$pe)
           statesarray-add-edge($states,$grammar,$pe,$id)
         let $pending_ := if(fn:empty($pe)) then $pending else
           hamt:delete(pending-edge-hash#1,pending-edge-eq#2,$pending,$pe)
-        return ($id,function($f) { $f($states_,$statemap,$pending_,$names) })
+        return ($id,function($f) { $f($states_,$statemap,$pending_) })
       else 
         let $id := array:size($states)
         let $states_ := array:put($states,$id,$state)
@@ -316,7 +316,7 @@ declare %private function states-add-state($s,$grammar,$state,$pe)
             pending-edge($id,$gr:ws-category))
         let $pending_ := if(fn:empty($pe)) then $pending_ else
           hamt:delete(pending-edge-hash#1,pending-edge-eq#2,$pending_,$pe)
-        return ($id,function($f) { $f($states_,$statemap_,$pending_,$names) })
+        return ($id,function($f) { $f($states_,$statemap_,$pending_) })
     })
   })
 };
@@ -330,7 +330,7 @@ declare %private function statesarray-add-edge($states,$grammar,$pe,$id)
 
 declare %private function states-next-pending-edge($s)
 {
-  $s(function($states,$statemap,$pending,$names) {
+  $s(function($states,$statemap,$pending) {
     hamt:fold(function($r,$pe) { $pe },(),$pending)
   })
 };
@@ -440,7 +440,7 @@ declare %private function dfa($grammar)
 
 declare %private function dfa-process-pending($grammar,$s)
 {
-  $s(function($states,$statemap,$pending,$names) {
+  $s(function($states,$statemap,$pending) {
     let $pe := states-next-pending-edge($s)
     return if(fn:empty($pe)) then $s else
       $pe(function($sid,$c) {
@@ -582,46 +582,29 @@ declare %private function make-parser-function($grammar,$options)
 
 declare function generate-parser-tables($states)
 {
-  $states(function($states,$statemap,$pending,$names) {
-    let $nt-names :=
-      for $id in (0 to (array:size($names)-1))
-      let $name := array:get($names,$id)
-      return $name
-    let $nt-edges :=
+  $states(function($states,$statemap,$pending) {
+    let $states :=
       for $id in (0 to (array:size($states)-1))
       let $state := array:get($states,$id)
       return $state(function($drs,$nte,$te,$tre,$fns,$h) {
-        array:get($nte,?)
+        pr:state($id,
+          (
+            array:keys($te) ! codepoint(.),
+            for $e in $tre return $e(function($s,$e,$sid) {
+              '[' || codepoint($s) || "-" || codepoint($e) || ']'
+            })
+          ),
+          array:get($nte,?),
+          function($c) {
+            array:get($te,$c),
+            for $e in $tre return $e(function($s,$e,$sid) {
+              if($s le $c and $c le $e) then $sid else ()
+            })
+          },
+          $fns
+        )
       })
-    let $t-edges :=
-      for $id in (0 to (array:size($states)-1))
-      let $state := array:get($states,$id)
-      return $state(function($drs,$nte,$te,$tre,$fns,$h) {
-        function($c) {
-          array:get($te,$c), 
-          for $e in $tre return $e(function($s,$e,$sid) {
-            if($s le $c and $c le $e) then $sid else ()
-          })
-        }
-      })
-    let $t-values :=
-      for $id in (0 to (array:size($states)-1))
-      let $state := array:get($states,$id)
-      return $state(function($drs,$nte,$te,$tre,$fns,$h) {
-        function() {
-          array:keys($te) ! codepoint(.),
-          for $e in $tre return $e(function($s,$e,$sid) {
-            '[' || codepoint($s) || "-" || codepoint($e) || ']'
-          })
-        }
-      })
-    let $complete :=
-      for $id in (0 to (array:size($states)-1))
-      let $state := array:get($states,$id)
-      return $state(function($drs,$nte,$te,$tre,$fns,$h) {
-        function() { $fns }
-      })
-    return pr:make-parser($nt-edges,$t-edges,$t-values,$complete,$nt-names)
+    return pr:make-parser($states)
   })
 };
 
@@ -645,7 +628,7 @@ declare function generate-xquery($grammar,$options)
     (if($p:isMarkLogic) then "parser-runtime-ml.xq" else "parser-runtime.xq")
   return fn:string-join(
 
-  $states(function($states,$statemap,$pending,$names) {
+  $states(function($states,$statemap,$pending) {
     'xquery version "3.0";',
     if($main-module) then (
       'declare namespace x = "' || $namespace || '";'
@@ -654,20 +637,24 @@ declare function generate-xquery($grammar,$options)
     ),
     "import module namespace p = 'http://snelson.org.uk/functions/parser-runtime' at '" || $moduleURI || "';",
     "declare %private function x:ref($s) { function() { $s } };",
-    "declare %private variable $x:nt-names := (" ||
-    fn:string-join(
-      for $id in (0 to (array:size($names)-1))
-      let $name := array:get($names,$id)
-      return """" || $name || """"
-    ,",") ||
-    ");",
 
-    "declare %private variable $x:nt-edges := (&#10;  " ||
+    "declare %private variable $x:states := (&#10;  " ||
     fn:string-join(
       for $id in (0 to (array:size($states)-1))
       let $state := array:get($states,$id)
       return $state(function($drs,$nte,$te,$tre,$fns,$h) {
-        if(fn:empty(array:keys($nte))) then
+        "p:state(" || $id || "," ||
+
+        "(" ||
+        fn:string-join((
+            array:keys($te) ! ('"' || codepoint-xq(.) || '"'),
+            for $e in $tre return $e(function($s,$e,$sid) {
+              '"[' || codepoint-xq($s) || "-" || codepoint-xq($e) || ']"'
+            })
+          ),",") ||
+        ")" || ",&#10;    " ||
+
+        (if(fn:empty(array:keys($nte))) then
           "function($c) { () }"
         else ("function($c) { switch($c)" ||
           fn:string-join(
@@ -675,16 +662,8 @@ declare function generate-xquery($grammar,$options)
             return " case " || $nt || " return " || array:get($nte,$nt),
             "") ||
           " default return () }"
-        )
-      })
-    ,",&#10;  ") ||
-    ");",
+        )) || ",&#10;    " ||
 
-    "declare %private variable $x:t-edges := (&#10;  " ||
-    fn:string-join(
-      for $id in (0 to (array:size($states)-1))
-      let $state := array:get($states,$id)
-      return $state(function($drs,$nte,$te,$tre,$fns,$h) {
         "function($c) {" || (
           if(fn:empty(array:keys($te))) then "" else (
             " switch($c)" ||
@@ -707,43 +686,18 @@ declare function generate-xquery($grammar,$options)
         ) || (
           if(fn:empty(array:keys($te)) and fn:empty($tre)) then " () }"
           else " }"
-        )
-      })
-    ,",&#10;  ") ||
-    ");",
+        ) || ",&#10;    " ||
 
-    "declare %private variable $x:t-values := (&#10;  " ||
-    fn:string-join(
-      for $id in (0 to (array:size($states)-1))
-      let $state := array:get($states,$id)
-      return $state(function($drs,$nte,$te,$tre,$fns,$h) {
-        "x:ref((" ||
-        fn:string-join((
-            array:keys($te) ! ('"' || codepoint-xq(.) || '"'),
-            for $e in $tre return $e(function($s,$e,$sid) {
-              '"[' || codepoint-xq($s) || "-" || codepoint-xq($e) || ']"'
-            })
-          ),",") ||
-        "))"
-      })
-    ,",&#10;  ") ||
-    ");",
-
-    "declare %private variable $x:complete := (&#10;  " ||
-    fn:string-join(
-      for $id in (0 to (array:size($states)-1))
-      let $state := array:get($states,$id)
-      return $state(function($drs,$nte,$te,$tre,$fns,$h) {
-        "x:ref((" ||
+        "(" ||
         fn:string-join(
           for $f in $fns
           let $c := $f()
           return (
-            "&#10;    x:ref((" ||
+            "&#10;      x:ref((" ||
             fn:string(fn:head($c)) ||
             ",function($ch) {&#10;" ||
             fn:tail($c) ||
-            "&#10;    }))"
+            "&#10;      }))"
           )
         ,",") ||
         "))"
@@ -751,10 +705,9 @@ declare function generate-xquery($grammar,$options)
     ,",&#10;  ") ||
     ");",
     if($main-module) then (
-      "p:make-parser($x:nt-edges,$x:t-edges,$x:t-values,$x:complete,$x:nt-names)"
+      "p:make-parser($x:states)"
     ) else (
-      "declare %private variable $x:parser :=",
-      "  p:make-parser($x:nt-edges,$x:t-edges,$x:t-values,$x:complete,$x:nt-names);",
+      "declare %private variable $x:parser := p:make-parser($x:states);",
       "declare function x:parse($s) { $x:parser($s) };"
     )
   }),

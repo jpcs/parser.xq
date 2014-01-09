@@ -58,20 +58,15 @@ declare %private function codepoint($c)
  : States = (integer*)* (integer*)* ((integer,ActionFunction)*)* string*
  :)
 
-declare %private function states($nt-edges,$t-edges,$t-values,$complete,$nt-names)
+declare function state($sid,$tv,$nte,$te,$c)
 {
-  function($f) { $f($nt-edges,$t-edges,$t-values,$complete,$nt-names) }
+  function($f) { $f($nte,$te,$tv,$c,$sid) }
 };
 
 declare %private function row($states,$sid,$parent,$bases)
 {
-  $states(function($nt-edges,$t-edges,$t-values,$complete,$nt-names) {
-    let $i := $sid + 1
-    let $nte := $nt-edges[$i]
-    let $te := $t-edges[$i]
-    let $tv := $t-values[$i]()
-    let $c := $complete[$i]()
-    return function($f) { $f($nte,$te,$tv,$c,$sid,$parent,$bases) }
+  $states[$sid + 1](function($nte,$te,$tv,$c,$sid) {
+    function($f) { $f($nte,$te,$tv,$c,$sid,$parent,$bases) }
   })
 };
 
@@ -162,9 +157,8 @@ declare %private function epsilon-expand($states,$rows,$index,$row)
   })
 };
 
-declare function make-parser($nt-edges,$t-edges,$t-values,$complete,$nt-names)
+declare function make-parser($states)
 {
-  let $states := states($nt-edges,$t-edges,$t-values,$complete,$nt-names)
   let $chart := chart($states)
   return function($s) {
     let $tokens := fn:string-to-codepoints($s)

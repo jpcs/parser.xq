@@ -65,30 +65,21 @@ declare %private function codepoint($c)
  :   "nt-names" as string*
  :)
 
-declare %private function states($nt-edges,$t-edges,$t-values,$complete,$nt-names)
+declare function state($sid,$tv,$nte,$te,$c)
 {
-  map:get(map:new((
-    map:entry("nt-edges",$nt-edges),
-    map:entry("t-edges",$t-edges),
-    map:entry("t-values",$t-values),
-    map:entry("complete",$complete),
-    map:entry("nt-names",$nt-names)
-  )),?)
-};
-
-declare %private function row($states,$sid,$parent,$bases)
-{
-  let $i := $sid + 1
-  let $nte := $states("nt-edges")[$i]
-  let $te := $states("t-edges")[$i]
-  let $tv := $states("t-values")[$i]()
-  let $c := $states("complete")[$i]()
-  return map:get(map:new((
+  map:new((
     map:entry("nte",$nte),
     map:entry("te",$te),
     map:entry("tv",$tv),
     map:entry("c",$c),
-    map:entry("sid",$sid),
+    map:entry("sid",$sid)
+  ))
+};
+
+declare %private function row($states,$sid,$parent,$bases)
+{
+  map:get(map:new((
+    $states[$sid + 1],
     map:entry("parent",$parent),
     map:entry("bases",$bases)
   )),?)
@@ -209,10 +200,9 @@ declare %private function epsilon-expand($states,$rows,$index,$row)
   return epsilon-expand($states,$rows,$index,$row)
 };
 
-declare function make-parser($nt-edges,$t-edges,$t-values,$complete,$nt-names)
+declare function make-parser($states)
 {
-  let $states := states($nt-edges,$t-edges,$t-values,$complete,$nt-names)
-  return function($s) {
+  function($s) {
     let $tokens := fn:string-to-codepoints($s)
     let $chart := parse($states,$tokens)
     (: let $_ := xdmp:log(chart-as-string($chart)) :)
