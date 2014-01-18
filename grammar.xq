@@ -360,7 +360,16 @@ declare function zero-or-more($b)
 
 declare function zero-or-more($b,$s)
 {
-  optional(one-or-more($b,$s))
+  if(fn:empty($s)) then zero-or-more($b)
+  else optional(one-or-more($b,$s))
+};
+
+declare function sequence($b)
+{
+  let $b_ := make-non-terms($b)
+  return function($n,$i,$c,$r,$ws,$f,$df) {
+    make-rules($n,$i,$c,($b_,$r),$ws,$f,$df)
+  }
 };
 
 declare function choice($b1,$b2)
@@ -440,6 +449,14 @@ declare function choice($b1,$b2,$b3,$b4,$b5,$b6)
       make-rules($n,?,$c,($b5_,$r),$ws,$f,$df),
       make-rules($n,?,$c,($b6_,$r),$ws,$f,$df)
     ))
+  }
+};
+
+declare function nchoice($b)
+{
+  let $b_ := make-non-terms($b)
+  return function($n,$i,$c,$r,$ws,$f,$df) {
+    chain($i, $b_ ! make-rules($n,?,$c,(.,$r),$ws,$f,$df))
   }
 };
 

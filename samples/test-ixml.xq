@@ -1,17 +1,29 @@
 xquery version "1.0-ml";
 import module namespace ix = "http://snelson.org.uk/functions/ixml-parser" at "../lib/ixml-parser.xq";
+import module namespace gr = "http://snelson.org.uk/functions/grammar" at "../grammar.xq";
+import module namespace p = "http://snelson.org.uk/functions/parser" at "../parser.xq";
 
-ix:parse(
+let $grammar := ix:parse(
 '
-css: rules .
-rules: rule; rules, rule.
-rule: selector, block.
-block: "{", properties, "}".
-properties:  property; property, ";", properties.
-property:  name, ":", value; empty.
+css: -S, (rule, -S)+ .
+rule: selector, -S, block.
+block: -LCurly, (property; -S)+-SemiColon, -RCurly.
+property:  -S, name, -S, -Colon, -S, value, -S.
 selector: name.
-empty: .
+name: +"name" .
+value: +"value" .
+
+LCurly: "{" .
+RCurly: "}" .
+SemiColon: ";" .
+Colon: ":" .
+S: (" " ; "&#9;" ; "&#10;" ; "&#13;")*.
 '
+)
+let $input := "
+name { name: value ; name   :   value }
+"
+(: let $grammar := ix:parse( :)
 (: ' :)
 (: ixml: (rule)+. :)
 (: rule: @name, -colon, -definition, -stop. :)
@@ -50,7 +62,17 @@ empty: .
 (: letter: +"a"; +"b"; +"c". :)
 (: S: " "*. :)
 (: ' :)
-(: name: ... :)
-(: value: ... :)
-)(),
+(: ) :)
+let $t_grammar := xdmp:elapsed-time()
+let $parser := p:make-parser($grammar,"eval")
+let $t_parser := xdmp:elapsed-time()
+let $result := $parser($input)
+let $t_parse := xdmp:elapsed-time()
+return (
+  "Grammar: " || $t_grammar,
+  "Parser: " || ($t_parser - $t_grammar),
+  "Parse: " || ($t_parse - $t_parser),
+  gr:grammar-as-string($grammar),
+  $result()
+),
 xdmp:elapsed-time()
