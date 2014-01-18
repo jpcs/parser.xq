@@ -309,6 +309,30 @@ declare function non-term($value)
   }
 };
 
+declare function non-term-($value)
+{
+  function($n,$i,$c,$r,$ws,$f,$df) {
+    let $n_ := $n || "_" || $i
+    let $nt := non-term($n_)
+    return (
+      make-rules($n,$i+1,$c,($nt,$r),$ws,$f,$df),
+      fn:tail(make-rules($n_,1,category-nt($value),(),$ws,$df[1],$df))
+    )
+  }
+};
+
+declare function non-term-attr($value)
+{
+  function($n,$i,$c,$r,$ws,$f,$df) {
+    let $n_ := $n || "_" || $i
+    let $nt := non-term($n_)
+    return (
+      make-rules($n,$i+1,$c,($nt,$r),$ws,$f,$df),
+      fn:tail(make-rules($n_,1,category-nt($value),(),$ws,$df[6]($value),$df))
+    )
+  }
+};
+
 declare function optional($b)
 {
   let $b_ := make-non-terms($b)

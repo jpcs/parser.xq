@@ -24,7 +24,7 @@ let $grammar := gr:grammar((
 (: alternative: (-term)*-comma. :)
 (: comma:  -S, ",", -S. :)
   gr:rule("alternative",gr:zero-or-more("term",gr:term-(",")),(),
-    "gr:sequence($ch)" (: TBD -, @, etc. :)
+    "gr:sequence($ch)"
   ),
 
 (: term: -symbol; -repetition. :)
@@ -91,13 +91,13 @@ let $grammar := gr:grammar((
 (: refinement: -minus, @name. :)
 (: minus:  -S, "-", -S. :)
   gr:rule("refinement",(gr:term-("-"),"name"),(),
-    "gr:non-term($ch)" (: TBD :)
+    "gr:non-term-($ch)"
   ),
 
 (: attribute: -at, @name. :)
 (: at:  -S, "@", -S. :)
   gr:rule("attribute",(gr:term-("@"),"name"),(),
-    "gr:non-term($ch)" (: TBD :)
+    "gr:non-term-attr($ch)"
   ),
 
 (: string: -openquote, (-character)*, -closequote. :)

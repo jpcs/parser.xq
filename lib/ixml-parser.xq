@@ -192,7 +192,7 @@ $ch
     function($c) { () },
     (
       x:ref((31,function($ch) {
-gr:non-term($ch)
+gr:non-term-($ch)
       })))),
   p:state(31,(),
     function($c) { switch($c) case 0 return 3 case 1 return 31 default return () },
@@ -543,7 +543,7 @@ $ch
     function($c) { () },
     (
       x:ref((33,function($ch) {
-gr:non-term($ch)
+gr:non-term-attr($ch)
       })))),
   p:state(88,(),
     function($c) { switch($c) case 0 return 89 case 1 return 88 case 20 return 91 default return () },

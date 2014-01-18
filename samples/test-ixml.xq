@@ -7,16 +7,12 @@ let $grammar := ix:parse(
 '
 css: -S, (rule, -S)+ .
 rule: selector, -S, block.
-block: -LCurly, (property; -S)+-SemiColon, -RCurly.
-property:  -S, name, -S, -Colon, -S, value, -S.
+block: "{", (property; -S)+";", "}".
+property:  -S, @name, -S, ":", -S, value, -S.
 selector: name.
 name: +"name" .
 value: +"value" .
 
-LCurly: "{" .
-RCurly: "}" .
-SemiColon: ";" .
-Colon: ":" .
 S: (" " ; "&#9;" ; "&#10;" ; "&#13;")*.
 '
 )
