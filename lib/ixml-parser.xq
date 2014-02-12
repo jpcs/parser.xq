@@ -1,7 +1,7 @@
 xquery version "3.0";
 module namespace x = "http://snelson.org.uk/functions/ixml-parser";
 import module namespace gr = "http://snelson.org.uk/functions/grammar" at "../grammar.xq";
-import module namespace p = 'http://snelson.org.uk/functions/parser-runtime' at '/parser.xq/parser-runtime.xq';
+import module namespace p = 'http://snelson.org.uk/functions/parser-runtime' at 'parser-runtime.xq';
 declare %private function x:ref($s) { function() { $s } };
 declare %private variable $x:states := (
   p:state(0,(),

@@ -23,7 +23,7 @@ import module namespace map = "http://snelson.org.uk/functions/hashmap" at "lib/
 import module namespace array = "http://snelson.org.uk/functions/array" at "lib/array.xq";
 import module namespace hamt = "http://snelson.org.uk/functions/hamt" at "lib/hamt.xq";
 import module namespace gr = "http://snelson.org.uk/functions/grammar" at "grammar.xq";
-import module namespace pr = "http://snelson.org.uk/functions/parser-runtime" at "parser-runtime.xq";
+import module namespace pr = "http://snelson.org.uk/functions/parser-runtime" at "lib/parser-runtime.xq";
 
 declare %private variable $isMarkLogic as xs:boolean external :=
   fn:exists(fn:function-lookup(fn:QName("http://marklogic.com/xdmp","functions"),0));
@@ -625,7 +625,7 @@ declare function generate-xquery($grammar,$options)
   let $states := dfa($grammar)
   let $_ := $p:log(states-as-string($states))
   let $moduleURI := fn:replace(try { fn:error() } catch * { $err:module },"^(.*/)[^/]*$","$1") ||
-    (if($p:isMarkLogic) then "parser-runtime-ml.xq" else "parser-runtime.xq")
+    (if($p:isMarkLogic) then "lib/parser-runtime-ml.xq" else "lib/parser-runtime.xq")
   return fn:string-join(
 
   $states(function($states,$statemap,$pending) {

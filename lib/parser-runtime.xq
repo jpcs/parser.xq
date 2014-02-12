@@ -18,9 +18,9 @@ xquery version "3.0";
 
 module namespace p = "http://snelson.org.uk/functions/parser-runtime";
 declare default function namespace "http://snelson.org.uk/functions/parser-runtime";
-import module namespace map = "http://snelson.org.uk/functions/hashmap" at "lib/hashmap.xq";
-import module namespace array = "http://snelson.org.uk/functions/array" at "lib/array.xq";
-import module namespace hamt = "http://snelson.org.uk/functions/hamt" at "lib/hamt.xq";
+import module namespace map = "http://snelson.org.uk/functions/hashmap" at "hashmap.xq";
+import module namespace array = "http://snelson.org.uk/functions/array" at "array.xq";
+import module namespace hamt = "http://snelson.org.uk/functions/hamt" at "hamt.xq";
 
 declare variable $epsilon-id := 0;
 declare variable $ws-id := 1;
