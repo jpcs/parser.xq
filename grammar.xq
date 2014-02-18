@@ -19,7 +19,6 @@ xquery version "3.0";
 module namespace gr = "http://snelson.org.uk/functions/grammar";
 declare default function namespace "http://snelson.org.uk/functions/grammar";
 import module namespace map = "http://snelson.org.uk/functions/hashmap" at "lib/hashmap.xq";
-import module namespace array = "http://snelson.org.uk/functions/array" at "lib/array.xq";
 import module namespace hamt = "http://snelson.org.uk/functions/hamt" at "lib/hamt.xq";
 
 (:

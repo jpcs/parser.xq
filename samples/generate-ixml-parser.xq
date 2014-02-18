@@ -28,14 +28,10 @@ let $grammar := gr:grammar((
   ),
 
 (: term: -symbol; -repetition. :)
-  gr:rule("term",gr:choice("symbol","repetition"),(),
-    "$ch"
-  ),
+  gr:rule-("term",gr:choice("symbol","repetition")),
 
 (: repetition: one-or-more; zero-or-more. :)
-  gr:rule("repetition",gr:choice("one-or-more","zero-or-more"),(),
-    "$ch"
-  ),
+  gr:rule-("repetition",gr:choice("one-or-more","zero-or-more")),
 
 (: one-or-more: -open, -definition, -close, -plus, separator. :)
 (: open:  -S, "(", -S. :)
@@ -55,22 +51,16 @@ let $grammar := gr:grammar((
 
 (: separator: -symbol; -empty. :)
 (: empty: . :)
-  gr:rule("separator",gr:choice("symbol","no-separator"),(),
-    "$ch"
-  ),
+  gr:rule-("separator",gr:choice("symbol","no-separator")),
   gr:rule("no-separator",(),(),
     "()"
   ),
 
 (: symbol: -terminal; nonterminal; refinement ; attribute. :)
-  gr:rule("symbol",gr:choice("terminal","nonterminal","refinement","attribute"),(),
-    "$ch"
-  ),
+  gr:rule-("symbol",gr:choice("terminal","nonterminal","refinement","attribute")),
 
 (: terminal: explicit-terminal; implicit-terminal. :)
-  gr:rule("terminal",gr:choice("explicit-terminal","implicit-terminal"),(),
-    "$ch"
-  ),
+  gr:rule-("terminal",gr:choice("explicit-terminal","implicit-terminal")),
 
 (: explicit-terminal: -plus, @string. :)
 (: plus:  -S, "+", -S. :)

@@ -571,10 +571,10 @@ declare function make-parser($grammar,$options)
 
 declare %private function make-parser-function($grammar,$options)
 {
-  let $_ := $p:log(gr:grammar-as-string($grammar))
+  (: let $_ := $p:log(gr:grammar-as-string($grammar)) :)
   let $grammar := $grammar($p:parse-default-actions)
   let $states := dfa($grammar)
-  let $_ := $p:log(states-as-string($states))
+  (: let $_ := $p:log(states-as-string($states)) :)
   return generate-parser-tables($states)
 };
 
@@ -620,10 +620,10 @@ declare function generate-xquery($grammar,$options)
   let $namespace := if(fn:exists($namespace) and $namespace ne "") then $namespace
     else "http://snelson.org.uk/functions/parser/generated"
   let $main-module := $options = "main-module"
-  let $_ := $p:log(gr:grammar-as-string($grammar))
+  (: let $_ := $p:log(gr:grammar-as-string($grammar)) :)
   let $grammar := $grammar($p:generate-default-actions)
   let $states := dfa($grammar)
-  let $_ := $p:log(states-as-string($states))
+  (: let $_ := $p:log(states-as-string($states)) :)
   let $moduleURI := fn:replace(try { fn:error() } catch * { $err:module },"^(.*/)[^/]*$","$1") ||
     (if($p:isMarkLogic) then "lib/parser-runtime-ml.xq" else "lib/parser-runtime.xq")
   return fn:string-join(
